@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { config } from '../../utils/config';
+import { getConfigManager } from '../config';
 import { logger } from '../../utils/logger';
 
 export type MessageRole = 'system' | 'user' | 'assistant';
@@ -27,11 +27,9 @@ export type StreamChunkCallback = (chunk: string) => void;
 
 class LLMProvider {
   private static instance: LLMProvider;
-  private openaiClient: OpenAI | null = null;
-  private anthropicClient: Anthropic | null = null;
 
   private constructor() {
-    this.initializeClients();
+    logger.info('LLMProvider initialized');
   }
 
   static getInstance(): LLMProvider {
@@ -41,35 +39,41 @@ class LLMProvider {
     return LLMProvider.instance;
   }
 
-  private initializeClients(): void {
-    try {
-      const aiConfig = config.get('aiProviders');
-
-      // Initialize OpenAI client
-      if (aiConfig.openai?.apiKey) {
-        this.openaiClient = new OpenAI({
-          apiKey: aiConfig.openai.apiKey,
-          baseURL: aiConfig.openai.baseURL,
-        });
-        logger.info('OpenAI client initialized');
-      }
-
-      // Initialize Anthropic client
-      if (aiConfig.anthropic?.apiKey) {
-        this.anthropicClient = new Anthropic({
-          apiKey: aiConfig.anthropic.apiKey,
-        });
-        logger.info('Anthropic client initialized');
-      }
-    } catch (error) {
-      logger.error('Failed to initialize LLM clients', error);
-    }
+  /**
+   * Read fresh AI config from ConfigManager each time to pick up Settings UI changes.
+   */
+  private getAIConfig() {
+    const configManager = getConfigManager();
+    return configManager.getSection('ai');
   }
 
-  private getProvider(provider?: 'openai' | 'anthropic'): 'openai' | 'anthropic' {
-    if (provider) return provider;
-    const defaultProvider = config.get('aiProviders').defaultProvider;
-    return defaultProvider || 'anthropic';
+  private getProvider(explicitProvider?: 'openai' | 'anthropic'): 'openai' | 'anthropic' {
+    if (explicitProvider) return explicitProvider;
+    const aiConfig = this.getAIConfig();
+    return aiConfig.defaultProvider || 'openai';
+  }
+
+  /**
+   * Create a fresh OpenAI client using the current config.
+   */
+  private createOpenAIClient(): OpenAI {
+    const aiConfig = this.getAIConfig();
+    if (!aiConfig.openaiApiKey) {
+      throw new Error('OpenAI API key not configured. Please set it in Settings.');
+    }
+    const baseURL = aiConfig.openaiBaseUrl || 'https://api.openai.com/v1';
+    return new OpenAI({ apiKey: aiConfig.openaiApiKey, baseURL });
+  }
+
+  /**
+   * Create a fresh Anthropic client using the current config.
+   */
+  private createAnthropicClient(): Anthropic {
+    const aiConfig = this.getAIConfig();
+    if (!aiConfig.anthropicApiKey) {
+      throw new Error('Anthropic API key not configured. Please set it in Settings.');
+    }
+    return new Anthropic({ apiKey: aiConfig.anthropicApiKey });
   }
 
   async chat(messages: Message[], options: ChatOptions = {}): Promise<string> {
@@ -88,21 +92,18 @@ class LLMProvider {
   }
 
   private async chatOpenAI(messages: Message[], options: ChatOptions): Promise<string> {
-    if (!this.openaiClient) {
-      throw new Error('OpenAI client not initialized. Please set API key in config.');
-    }
+    const client = this.createOpenAIClient();
+    const aiConfig = this.getAIConfig();
+    const model = options.model || aiConfig.openaiModel || 'gpt-4-turbo-preview';
 
-    const aiConfig = config.get('aiProviders');
-    const model = options.model || aiConfig.openai?.model || 'gpt-4-turbo-preview';
-
-    const response = await this.openaiClient.chat.completions.create({
+    const response = await client.chat.completions.create({
       model,
       messages: messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
       })),
-      temperature: options.temperature ?? 0.7,
-      max_tokens: options.maxTokens ?? 2000,
+      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
       top_p: options.topP ?? 1.0,
     });
 
@@ -110,12 +111,9 @@ class LLMProvider {
   }
 
   private async chatAnthropic(messages: Message[], options: ChatOptions): Promise<string> {
-    if (!this.anthropicClient) {
-      throw new Error('Anthropic client not initialized. Please set API key in config.');
-    }
-
-    const aiConfig = config.get('aiProviders');
-    const model = options.model || aiConfig.anthropic?.model || 'claude-3-5-sonnet-20241022';
+    const client = this.createAnthropicClient();
+    const aiConfig = this.getAIConfig();
+    const model = options.model || aiConfig.anthropicModel || 'claude-sonnet-4-5-20250929';
 
     // Separate system messages from user/assistant messages
     const systemMessages = messages.filter((msg) => msg.role === 'system');
@@ -123,10 +121,10 @@ class LLMProvider {
 
     const systemPrompt = systemMessages.map((msg) => msg.content).join('\n\n');
 
-    const response = await this.anthropicClient.messages.create({
+    const response = await client.messages.create({
       model,
-      max_tokens: options.maxTokens ?? 2000,
-      temperature: options.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
+      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
       system: systemPrompt || undefined,
       messages: conversationMessages.map((msg) => ({
         role: msg.role as 'user' | 'assistant',
@@ -162,21 +160,18 @@ class LLMProvider {
     options: ChatOptions,
     onChunk: StreamChunkCallback
   ): Promise<void> {
-    if (!this.openaiClient) {
-      throw new Error('OpenAI client not initialized. Please set API key in config.');
-    }
+    const client = this.createOpenAIClient();
+    const aiConfig = this.getAIConfig();
+    const model = options.model || aiConfig.openaiModel || 'gpt-4-turbo-preview';
 
-    const aiConfig = config.get('aiProviders');
-    const model = options.model || aiConfig.openai?.model || 'gpt-4-turbo-preview';
-
-    const stream = await this.openaiClient.chat.completions.create({
+    const stream = await client.chat.completions.create({
       model,
       messages: messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
       })),
-      temperature: options.temperature ?? 0.7,
-      max_tokens: options.maxTokens ?? 2000,
+      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
       top_p: options.topP ?? 1.0,
       stream: true,
     });
@@ -194,12 +189,9 @@ class LLMProvider {
     options: ChatOptions,
     onChunk: StreamChunkCallback
   ): Promise<void> {
-    if (!this.anthropicClient) {
-      throw new Error('Anthropic client not initialized. Please set API key in config.');
-    }
-
-    const aiConfig = config.get('aiProviders');
-    const model = options.model || aiConfig.anthropic?.model || 'claude-3-5-sonnet-20241022';
+    const client = this.createAnthropicClient();
+    const aiConfig = this.getAIConfig();
+    const model = options.model || aiConfig.anthropicModel || 'claude-sonnet-4-5-20250929';
 
     // Separate system messages from user/assistant messages
     const systemMessages = messages.filter((msg) => msg.role === 'system');
@@ -207,10 +199,10 @@ class LLMProvider {
 
     const systemPrompt = systemMessages.map((msg) => msg.content).join('\n\n');
 
-    const stream = await this.anthropicClient.messages.stream({
+    const stream = await client.messages.stream({
       model,
-      max_tokens: options.maxTokens ?? 2000,
-      temperature: options.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
+      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
       system: systemPrompt || undefined,
       messages: conversationMessages.map((msg) => ({
         role: msg.role as 'user' | 'assistant',
@@ -246,13 +238,10 @@ class LLMProvider {
   }
 
   private async embedOpenAI(text: string, options: EmbedOptions): Promise<number[]> {
-    if (!this.openaiClient) {
-      throw new Error('OpenAI client not initialized. Please set API key in config.');
-    }
-
+    const client = this.createOpenAIClient();
     const model = options.model || 'text-embedding-3-small';
 
-    const response = await this.openaiClient.embeddings.create({
+    const response = await client.embeddings.create({
       model,
       input: text,
     });
@@ -261,7 +250,8 @@ class LLMProvider {
   }
 
   reinitialize(): void {
-    this.initializeClients();
+    // No-op: clients are now created fresh on each call
+    logger.info('LLMProvider reinitialize called (no-op, clients created per-call)');
   }
 }
 

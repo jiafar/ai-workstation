@@ -1,4 +1,4 @@
-import { config } from '../../utils/config';
+import { getConfigManager } from '../config';
 import { logger } from '../../utils/logger';
 
 export interface Memory {
@@ -56,7 +56,7 @@ class ContextBuilder {
       includeShortTerm = true,
       includeWorking = true,
       includeEpisodic = true,
-      maxMemories = (config.get('memory') as any).vectorSearchLimit || 10,
+      maxMemories = getConfigManager().getSection('memory').maxSessionSize || 10,
       relevanceThreshold = 0.5,
       customSystemPrompt,
     } = options;

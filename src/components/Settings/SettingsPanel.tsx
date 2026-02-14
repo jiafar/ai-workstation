@@ -1,64 +1,99 @@
-import React, { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-interface Settings {
-  aiProvider: {
-    openaiApiKey: string;
-    anthropicApiKey: string;
-    defaultProvider: 'openai' | 'anthropic';
-  };
-  editor: {
-    fontSize: number;
-    tabSize: number;
-    wordWrap: boolean;
-    minimap: boolean;
-  };
-  theme: 'dark' | 'light';
+interface AISettings {
+  defaultProvider: 'openai' | 'anthropic';
+  openaiApiKey: string;
+  anthropicApiKey: string;
+  openaiBaseUrl?: string;
+  openaiModel: string;
+  anthropicModel: string;
+  maxTokens: number;
+  temperature: number;
 }
 
-const defaultSettings: Settings = {
-  aiProvider: {
-    openaiApiKey: '',
-    anthropicApiKey: '',
-    defaultProvider: 'openai',
-  },
-  editor: {
-    fontSize: 14,
-    tabSize: 2,
-    wordWrap: true,
-    minimap: true,
-  },
-  theme: 'dark',
-};
+interface EditorSettings {
+  tabSize: number;
+  useSpaces: boolean;
+  autoSave: boolean;
+  autoSaveInterval: number;
+  formatOnSave: boolean;
+}
+
+interface UISettings {
+  theme: 'light' | 'dark' | 'system';
+  fontSize: number;
+  sidebarCollapsed: boolean;
+  showLineNumbers: boolean;
+  wordWrap: boolean;
+}
+
+interface TerminalSettings {
+  defaultShell: string;
+  fontSize: number;
+  cursorStyle: 'block' | 'line' | 'bar';
+  scrollback: number;
+}
 
 export const SettingsPanel: React.FC = () => {
-  const [settings, setSettings] = useState<Settings>(defaultSettings);
-  const [saved, setSaved] = useState(false);
+  const [aiSettings, setAISettings] = useState<AISettings | null>(null);
+  const [editorSettings, setEditorSettings] = useState<EditorSettings | null>(null);
+  const [uiSettings, setUISettings] = useState<UISettings | null>(null);
+  const [terminalSettings, setTerminalSettings] = useState<TerminalSettings | null>(null);
+  const [saved] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleSave = () => {
-    // TODO: Persist settings via window.api.settings.save()
-    console.log('Saving settings:', settings);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
+  // Load all settings from config on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const config = await window.api.config.get() as Record<string, unknown>;
+        if (config) {
+          setAISettings(config.ai as AISettings);
+          setEditorSettings(config.editor as EditorSettings);
+          setUISettings(config.ui as UISettings);
+          setTerminalSettings(config.terminal as TerminalSettings);
+        }
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSettings();
+  }, []);
 
-  const updateAIProvider = (field: keyof Settings['aiProvider'], value: any) => {
-    setSettings((prev) => ({
-      ...prev,
-      aiProvider: { ...prev.aiProvider, [field]: value },
-    }));
-  };
+  const updateAI = useCallback((field: keyof AISettings, value: unknown) => {
+    setAISettings((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, [field]: value };
+      // Save immediately
+      window.api.config.updateSection('ai', updated).catch(console.error);
+      return updated;
+    });
+  }, []);
 
-  const updateEditor = (field: keyof Settings['editor'], value: any) => {
-    setSettings((prev) => ({
-      ...prev,
-      editor: { ...prev.editor, [field]: value },
-    }));
-  };
+  const updateUI = useCallback((field: keyof UISettings, value: unknown) => {
+    setUISettings((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, [field]: value };
+      window.api.config.updateSection('ui', updated).catch(console.error);
+      return updated;
+    });
+  }, []);
+
+  if (loading || !aiSettings || !editorSettings || !uiSettings || !terminalSettings) {
+    return (
+      <div className="flex items-center justify-center h-full bg-bg-secondary">
+        <div className="text-text-muted">Loading settings...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-bg-secondary">
       <div className="p-4 border-b border-border-primary">
         <h2 className="text-text-primary font-semibold">Settings</h2>
+        {saved && <span className="text-green-400 text-sm ml-2">Saved</span>}
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-6">
@@ -71,10 +106,8 @@ export const SettingsPanel: React.FC = () => {
                 Default Provider
               </label>
               <select
-                value={settings.aiProvider.defaultProvider}
-                onChange={(e) =>
-                  updateAIProvider('defaultProvider', e.target.value as 'openai' | 'anthropic')
-                }
+                value={aiSettings.defaultProvider}
+                onChange={(e) => updateAI('defaultProvider', e.target.value)}
                 className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-blue"
               >
                 <option value="openai">OpenAI</option>
@@ -88,8 +121,8 @@ export const SettingsPanel: React.FC = () => {
               </label>
               <input
                 type="password"
-                value={settings.aiProvider.openaiApiKey}
-                onChange={(e) => updateAIProvider('openaiApiKey', e.target.value)}
+                value={aiSettings.openaiApiKey}
+                onChange={(e) => updateAI('openaiApiKey', e.target.value)}
                 placeholder="sk-..."
                 className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-accent-blue"
               />
@@ -101,11 +134,63 @@ export const SettingsPanel: React.FC = () => {
               </label>
               <input
                 type="password"
-                value={settings.aiProvider.anthropicApiKey}
-                onChange={(e) => updateAIProvider('anthropicApiKey', e.target.value)}
+                value={aiSettings.anthropicApiKey}
+                onChange={(e) => updateAI('anthropicApiKey', e.target.value)}
                 placeholder="sk-ant-..."
                 className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-accent-blue"
               />
+            </div>
+
+            <div>
+              <label className="block text-text-secondary text-sm mb-1">
+                OpenAI Model
+              </label>
+              <input
+                type="text"
+                value={aiSettings.openaiModel}
+                onChange={(e) => updateAI('openaiModel', e.target.value)}
+                className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-blue"
+              />
+            </div>
+
+            <div>
+              <label className="block text-text-secondary text-sm mb-1">
+                Anthropic Model
+              </label>
+              <input
+                type="text"
+                value={aiSettings.anthropicModel}
+                onChange={(e) => updateAI('anthropicModel', e.target.value)}
+                className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-blue"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-text-secondary text-sm mb-1">
+                  Max Tokens
+                </label>
+                <input
+                  type="number"
+                  value={aiSettings.maxTokens}
+                  onChange={(e) => updateAI('maxTokens', parseInt(e.target.value) || 4096)}
+                  className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-blue"
+                />
+              </div>
+              <div>
+                <label className="block text-text-secondary text-sm mb-1">
+                  Temperature
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="2"
+                  value={aiSettings.temperature}
+                  onChange={(e) => updateAI('temperature', parseFloat(e.target.value) || 0.7)}
+                  className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-blue"
+                />
+              </div>
             </div>
           </div>
         </section>
@@ -116,29 +201,14 @@ export const SettingsPanel: React.FC = () => {
           <div className="space-y-3">
             <div>
               <label className="block text-text-secondary text-sm mb-1">
-                Font Size: {settings.editor.fontSize}px
+                Font Size: {uiSettings.fontSize}px
               </label>
               <input
                 type="range"
                 min="10"
                 max="24"
-                value={settings.editor.fontSize}
-                onChange={(e) => updateEditor('fontSize', parseInt(e.target.value))}
-                className="w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-text-secondary text-sm mb-1">
-                Tab Size: {settings.editor.tabSize} spaces
-              </label>
-              <input
-                type="range"
-                min="2"
-                max="8"
-                step="2"
-                value={settings.editor.tabSize}
-                onChange={(e) => updateEditor('tabSize', parseInt(e.target.value))}
+                value={uiSettings.fontSize}
+                onChange={(e) => updateUI('fontSize', parseInt(e.target.value))}
                 className="w-full"
               />
             </div>
@@ -146,28 +216,28 @@ export const SettingsPanel: React.FC = () => {
             <div className="flex items-center justify-between">
               <label className="text-text-secondary text-sm">Word Wrap</label>
               <button
-                onClick={() => updateEditor('wordWrap', !settings.editor.wordWrap)}
+                onClick={() => updateUI('wordWrap', !uiSettings.wordWrap)}
                 className={`px-4 py-1 rounded text-sm transition-colors ${
-                  settings.editor.wordWrap
+                  uiSettings.wordWrap
                     ? 'bg-accent-blue text-white'
                     : 'bg-bg-surface text-text-muted'
                 }`}
               >
-                {settings.editor.wordWrap ? 'On' : 'Off'}
+                {uiSettings.wordWrap ? 'On' : 'Off'}
               </button>
             </div>
 
             <div className="flex items-center justify-between">
-              <label className="text-text-secondary text-sm">Minimap</label>
+              <label className="text-text-secondary text-sm">Line Numbers</label>
               <button
-                onClick={() => updateEditor('minimap', !settings.editor.minimap)}
+                onClick={() => updateUI('showLineNumbers', !uiSettings.showLineNumbers)}
                 className={`px-4 py-1 rounded text-sm transition-colors ${
-                  settings.editor.minimap
+                  uiSettings.showLineNumbers
                     ? 'bg-accent-blue text-white'
                     : 'bg-bg-surface text-text-muted'
                 }`}
               >
-                {settings.editor.minimap ? 'On' : 'Off'}
+                {uiSettings.showLineNumbers ? 'On' : 'Off'}
               </button>
             </div>
           </div>
@@ -177,41 +247,21 @@ export const SettingsPanel: React.FC = () => {
         <section>
           <h3 className="text-text-primary font-medium mb-3">Theme</h3>
           <div className="flex space-x-2">
-            <button
-              onClick={() => setSettings((prev) => ({ ...prev, theme: 'dark' }))}
-              className={`flex-1 px-4 py-2 rounded transition-colors ${
-                settings.theme === 'dark'
-                  ? 'bg-accent-blue text-white'
-                  : 'bg-bg-surface text-text-muted'
-              }`}
-            >
-              Dark
-            </button>
-            <button
-              onClick={() => setSettings((prev) => ({ ...prev, theme: 'light' }))}
-              className={`flex-1 px-4 py-2 rounded transition-colors ${
-                settings.theme === 'light'
-                  ? 'bg-accent-blue text-white'
-                  : 'bg-bg-surface text-text-muted'
-              }`}
-            >
-              Light
-            </button>
+            {(['dark', 'light', 'system'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => updateUI('theme', t)}
+                className={`flex-1 px-4 py-2 rounded transition-colors capitalize ${
+                  uiSettings.theme === t
+                    ? 'bg-accent-blue text-white'
+                    : 'bg-bg-surface text-text-muted'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
           </div>
         </section>
-      </div>
-
-      <div className="p-4 border-t border-border-primary">
-        <button
-          onClick={handleSave}
-          className={`w-full px-4 py-2 rounded transition-colors ${
-            saved
-              ? 'bg-green-500 text-white'
-              : 'bg-accent-blue text-white hover:bg-opacity-90'
-          }`}
-        >
-          {saved ? 'Saved!' : 'Save Settings'}
-        </button>
       </div>
     </div>
   );

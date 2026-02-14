@@ -111,7 +111,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
       .concat([{ role: 'user', content: userMessage.content }])
 
     try {
-      startStream(conversationMessages, {
+      await startStream(conversationMessages, {
         provider: selectedProvider,
         temperature: 0.7,
         maxTokens: 2000,

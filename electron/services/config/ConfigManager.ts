@@ -1,14 +1,17 @@
 import { app } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { logger } from '../../utils/logger'
 
 export interface AppConfig {
   // AI 配置
   ai: {
-    provider: 'openai' | 'anthropic' | 'custom'
-    apiKey: string
-    baseUrl?: string
-    model: string
+    defaultProvider: 'openai' | 'anthropic'
+    openaiApiKey: string
+    anthropicApiKey: string
+    openaiBaseUrl?: string
+    openaiModel: string
+    anthropicModel: string
     maxTokens: number
     temperature: number
   }
@@ -51,9 +54,12 @@ export interface AppConfig {
 
 const defaultConfig: AppConfig = {
   ai: {
-    provider: 'openai',
-    apiKey: '',
-    model: 'gpt-4',
+    defaultProvider: 'openai',
+    openaiApiKey: '',
+    anthropicApiKey: '',
+    openaiBaseUrl: '',
+    openaiModel: 'gpt-4-turbo-preview',
+    anthropicModel: 'claude-sonnet-4-5-20250929',
     maxTokens: 4096,
     temperature: 0.7,
   },
@@ -97,7 +103,12 @@ class ConfigManager {
   constructor() {
     const userDataPath = app.getPath('userData')
     this.configPath = join(userDataPath, 'config.json')
+    logger.info('[Config] Config path:', { path: this.configPath })
     this.config = this.load()
+    // Save defaults on first run so config.json always exists
+    if (!existsSync(this.configPath)) {
+      this.save()
+    }
   }
 
   private load(): AppConfig {
@@ -126,14 +137,15 @@ class ConfigManager {
 
   private save(): void {
     try {
-      const dir = this.configPath.substring(0, this.configPath.lastIndexOf('/'))
+      const dir = dirname(this.configPath)
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true })
       }
       writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf-8')
+      logger.info('[Config] Saved config to disk', { path: this.configPath })
       this.notifyListeners()
     } catch (error) {
-      console.error('[Config] Failed to save config:', error)
+      logger.error('[Config] Failed to save config', error)
     }
   }
 
@@ -155,6 +167,7 @@ class ConfigManager {
   }
 
   updateSection<K extends keyof AppConfig>(section: K, updates: Partial<AppConfig[K]>): void {
+    logger.info('[Config] updateSection called', { section, updateKeys: Object.keys(updates as Record<string, unknown>) })
     this.config[section] = { ...this.config[section], ...updates } as AppConfig[K]
     this.save()
   }

@@ -2,10 +2,12 @@ import { create } from 'zustand'
 
 export interface AppConfig {
   ai: {
-    provider: 'openai' | 'anthropic' | 'custom'
-    apiKey: string
-    baseUrl?: string
-    model: string
+    defaultProvider: 'openai' | 'anthropic'
+    openaiApiKey: string
+    anthropicApiKey: string
+    openaiBaseUrl?: string
+    openaiModel: string
+    anthropicModel: string
     maxTokens: number
     temperature: number
   }
