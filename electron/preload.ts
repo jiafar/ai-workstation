@@ -88,19 +88,29 @@ export interface ElectronAPI {
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void
 }
 
+// Helper to unwrap { success, data, error } responses from IPC
+async function unwrap<T>(promise: Promise<{ success: boolean; data?: T; error?: string }>): Promise<T> {
+  const result = await promise
+  if (result && typeof result === 'object' && 'success' in result) {
+    if (!result.success) throw new Error(result.error || 'Unknown error')
+    return result.data as T
+  }
+  return result as T
+}
+
 const api: ElectronAPI = {
   fs: {
-    readFile: (path) => ipcRenderer.invoke('fs:read', path),
-    writeFile: (path, content) => ipcRenderer.invoke('fs:write', path, content),
-    readDir: (path) => ipcRenderer.invoke('fs:readdir', path),
-    stat: (path) => ipcRenderer.invoke('fs:stat', path),
-    exists: (path) => ipcRenderer.invoke('fs:exists', path),
-    mkdir: (path) => ipcRenderer.invoke('fs:mkdir', path),
-    remove: (path) => ipcRenderer.invoke('fs:remove', path),
-    rename: (oldPath, newPath) => ipcRenderer.invoke('fs:rename', oldPath, newPath),
-    watchDir: (path) => ipcRenderer.invoke('fs:watch', path),
-    unwatchDir: (path) => ipcRenderer.invoke('fs:unwatch', path),
-    selectDirectory: () => ipcRenderer.invoke('fs:select-directory'),
+    readFile: (path) => unwrap<string>(ipcRenderer.invoke('fs:read', path)),
+    writeFile: (path, content) => unwrap<void>(ipcRenderer.invoke('fs:write', path, content)),
+    readDir: (path) => unwrap<FileEntry[]>(ipcRenderer.invoke('fs:readdir', path)),
+    stat: (path) => unwrap(ipcRenderer.invoke('fs:stat', path)),
+    exists: (path) => unwrap<boolean>(ipcRenderer.invoke('fs:exists', path)),
+    mkdir: (path) => unwrap<void>(ipcRenderer.invoke('fs:mkdir', path)),
+    remove: (path) => unwrap<void>(ipcRenderer.invoke('fs:remove', path)),
+    rename: (oldPath, newPath) => unwrap<void>(ipcRenderer.invoke('fs:rename', oldPath, newPath)),
+    watchDir: (path) => unwrap<void>(ipcRenderer.invoke('fs:watch', path)),
+    unwatchDir: (path) => unwrap<void>(ipcRenderer.invoke('fs:unwatch', path)),
+    selectDirectory: () => unwrap<string | null>(ipcRenderer.invoke('fs:select-directory')),
   },
   terminal: {
     create: (id, cwd) => ipcRenderer.invoke('terminal:create', id, cwd),
