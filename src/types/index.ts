@@ -5,14 +5,22 @@ export interface FileEntry {
   children?: FileEntry[]
 }
 
+export interface CursorPosition {
+  lineNumber: number
+  column: number
+}
+
 export interface EditorTab {
   id: string
   path: string
   name: string
   content: string
+  originalContent: string
   language: string
   isDirty: boolean
   isActive: boolean
+  cursorPosition?: CursorPosition
+  scrollPosition?: number
 }
 
 export interface TerminalTab {
