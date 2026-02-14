@@ -39,8 +39,8 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ terminalId, isActiv
     window.api.terminal.create(terminalId).catch(console.error);
 
     // Handle data from backend
-    const unsubscribe = window.api.terminal.onData(terminalId, (data: string) => {
-      terminal.write(data);
+    const unsubscribe = window.api.terminal.onData((id: string, data: string) => {
+      if (id === terminalId) terminal.write(data);
     });
 
     // Handle user input
@@ -60,7 +60,7 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ terminalId, isActiv
       window.removeEventListener('resize', handleResize);
       unsubscribe();
       terminal.dispose();
-      window.api.terminal.destroy(terminalId).catch(console.error);
+      window.api.terminal.kill(terminalId).catch(console.error);
     };
   }, [terminalId]);
 
@@ -84,6 +84,12 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ terminalId, isActiv
 export const TerminalPanel: React.FC = () => {
   const { terminals, activeTerminalId, addTerminal, removeTerminal, setActiveTerminal } = useTerminalStore();
 
+  useEffect(() => {
+    if (terminals.length === 0) {
+      addTerminal();
+    }
+  }, []);
+
   const handleAddTerminal = () => {
     addTerminal();
   };
@@ -104,7 +110,7 @@ export const TerminalPanel: React.FC = () => {
             }`}
             onClick={() => setActiveTerminal(terminal.id)}
           >
-            <span className="text-text-primary text-sm mr-2">{terminal.name}</span>
+            <span className="text-text-primary text-sm mr-2">{terminal.title}</span>
             <button
               onClick={(e) => handleCloseTerminal(e, terminal.id)}
               className="ml-2 text-text-muted hover:text-text-primary"
