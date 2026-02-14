@@ -1,3 +1,4 @@
+import { ipcMain, app } from 'electron'
 import { registerFilesystemHandlers } from './filesystem'
 import { registerTerminalHandlers } from './terminal'
 import { registerGitHandlers } from './git'
@@ -10,7 +11,18 @@ import { registerRitualHandlers } from '../services/ritual/RitualManager'
 import { registerConfigHandlers } from './config'
 import { logger } from '../utils/logger'
 
+function registerAppHandlers() {
+  ipcMain.handle('app:get-path', async (_event, name: string) => {
+    return app.getPath(name as Parameters<typeof app.getPath>[0])
+  })
+
+  ipcMain.handle('app:get-platform', async () => {
+    return process.platform
+  })
+}
+
 export function registerAllHandlers() {
+  registerAppHandlers()
   registerFilesystemHandlers()
   registerTerminalHandlers()
   registerGitHandlers()

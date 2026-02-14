@@ -76,6 +76,9 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({
   useEffect(() => {
     if (!containerRef.current) return
 
+    // Reset destroyed flag on (re-)mount (needed for React StrictMode double-mount)
+    isDestroyedRef.current = false
+
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 14,
