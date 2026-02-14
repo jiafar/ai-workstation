@@ -41,6 +41,18 @@ export interface ElectronAPI {
     commit: (repoPath: string, message: string) => Promise<unknown>
     add: (repoPath: string, files: string[]) => Promise<void>
     branch: (repoPath: string) => Promise<unknown>
+    checkout: (repoPath: string, branch: string, create?: boolean) => Promise<void>
+    pull: (repoPath: string, remote?: string, branch?: string) => Promise<unknown>
+    push: (repoPath: string, remote?: string, branch?: string) => Promise<unknown>
+    clone: (repoUrl: string, localPath: string) => Promise<void>
+    remote: (repoPath: string) => Promise<unknown>
+    stash: (repoPath: string, message?: string) => Promise<void>
+    stashList: (repoPath: string) => Promise<unknown[]>
+    stashPop: (repoPath: string, index?: number) => Promise<void>
+    stashApply: (repoPath: string, index?: number) => Promise<void>
+    stashDrop: (repoPath: string, index?: number) => Promise<void>
+    fetch: (repoPath: string, remote?: string) => Promise<void>
+    merge: (repoPath: string, branch: string) => Promise<void>
   }
   // Memory
   memory: {
@@ -147,25 +159,37 @@ const api: ElectronAPI = {
     status: (repoPath) => ipcRenderer.invoke('git:status', repoPath),
     diff: (repoPath) => ipcRenderer.invoke('git:diff', repoPath),
     log: (repoPath, maxCount) => ipcRenderer.invoke('git:log', repoPath, maxCount),
-    commit: (repoPath, message) => ipcRenderer.invoke('git:commit', repoPath, message),
-    add: (repoPath, files) => ipcRenderer.invoke('git:add', repoPath, files),
-    branch: (repoPath) => ipcRenderer.invoke('git:branch', repoPath),
+    commit: (repoPath, message) => unwrap(ipcRenderer.invoke('git:commit', repoPath, message)),
+    add: (repoPath, files) => unwrap<void>(ipcRenderer.invoke('git:add', repoPath, files)),
+    branch: (repoPath) => unwrap(ipcRenderer.invoke('git:branch', repoPath)),
+    checkout: (repoPath, branch, create) => unwrap<void>(ipcRenderer.invoke('git:checkout', repoPath, branch, create)),
+    pull: (repoPath, remote, branch) => unwrap(ipcRenderer.invoke('git:pull', repoPath, remote, branch)),
+    push: (repoPath, remote, branch) => unwrap(ipcRenderer.invoke('git:push', repoPath, remote, branch)),
+    clone: (repoUrl, localPath) => unwrap<void>(ipcRenderer.invoke('git:clone', repoUrl, localPath)),
+    remote: (repoPath) => unwrap(ipcRenderer.invoke('git:remote', repoPath)),
+    stash: (repoPath, message) => unwrap<void>(ipcRenderer.invoke('git:stash', repoPath, message)),
+    stashList: (repoPath) => unwrap<unknown[]>(ipcRenderer.invoke('git:stashList', repoPath)),
+    stashPop: (repoPath, index) => unwrap<void>(ipcRenderer.invoke('git:stashPop', repoPath, index)),
+    stashApply: (repoPath, index) => unwrap<void>(ipcRenderer.invoke('git:stashApply', repoPath, index)),
+    stashDrop: (repoPath, index) => unwrap<void>(ipcRenderer.invoke('git:stashDrop', repoPath, index)),
+    fetch: (repoPath, remote) => unwrap<void>(ipcRenderer.invoke('git:fetch', repoPath, remote)),
+    merge: (repoPath, branch) => unwrap<void>(ipcRenderer.invoke('git:merge', repoPath, branch)),
   },
   memory: {
-    loadSession: (projectPath) => ipcRenderer.invoke('memory:load-session', projectPath),
-    saveObservation: (observation) => ipcRenderer.invoke('memory:save-observation', observation),
-    query: (query, layer) => ipcRenderer.invoke('memory:query', query, layer),
-    compress: () => ipcRenderer.invoke('memory:compress'),
+    loadSession: (projectPath) => unwrap(ipcRenderer.invoke('memory:load-session', projectPath)),
+    saveObservation: (observation) => unwrap<string>(ipcRenderer.invoke('memory:save-observation', observation)),
+    query: (query, layer) => unwrap<unknown[]>(ipcRenderer.invoke('memory:query', query, layer)),
+    compress: () => unwrap<void>(ipcRenderer.invoke('memory:compress')),
   },
   db: {
     query: (sql, params) => ipcRenderer.invoke('db:query', sql, params),
     run: (sql, params) => ipcRenderer.invoke('db:run', sql, params),
   },
   skill: {
-    list: () => ipcRenderer.invoke('skill:list'),
-    run: (name, inputs) => ipcRenderer.invoke('skill:run', name, inputs),
-    create: (definition) => ipcRenderer.invoke('skill:create', definition),
-    getResult: (runId) => ipcRenderer.invoke('skill:get-result', runId),
+    list: () => unwrap(ipcRenderer.invoke('skill:list')),
+    run: (name, inputs) => unwrap(ipcRenderer.invoke('skill:run', name, inputs)),
+    create: (definition) => unwrap<void>(ipcRenderer.invoke('skill:create', definition)),
+    getResult: (runId) => unwrap(ipcRenderer.invoke('skill:get-result', runId)),
     onProgress: (callback) => {
       const handler = (_: unknown, data: { skillName: string; progress: number; message: string }) => callback(data)
       ipcRenderer.on('skill:progress', handler)
@@ -173,11 +197,11 @@ const api: ElectronAPI = {
     },
   },
   workflow: {
-    list: () => ipcRenderer.invoke('workflow:list'),
-    run: (name, inputs) => ipcRenderer.invoke('workflow:run', name, inputs),
-    stop: (runId) => ipcRenderer.invoke('workflow:stop', runId),
-    getState: (runId) => ipcRenderer.invoke('workflow:get-state', runId),
-    create: (definition) => ipcRenderer.invoke('workflow:create', definition),
+    list: () => unwrap(ipcRenderer.invoke('workflow:list')),
+    run: (name, inputs) => unwrap<string>(ipcRenderer.invoke('workflow:run', name, inputs)),
+    stop: (runId) => unwrap<void>(ipcRenderer.invoke('workflow:stop', runId)),
+    getState: (runId) => unwrap(ipcRenderer.invoke('workflow:get-state', runId)),
+    create: (definition) => unwrap<void>(ipcRenderer.invoke('workflow:create', definition)),
     onStepComplete: (callback) => {
       const handler = (_: unknown, data: unknown) => callback(data)
       ipcRenderer.on('workflow:step-complete', handler)
@@ -190,10 +214,10 @@ const api: ElectronAPI = {
     },
   },
   ritual: {
-    list: () => ipcRenderer.invoke('ritual:list'),
-    configure: (id, config) => ipcRenderer.invoke('ritual:configure', id, config),
-    enable: (id, enabled) => ipcRenderer.invoke('ritual:enable', id, enabled),
-    trigger: (id) => ipcRenderer.invoke('ritual:trigger', id),
+    list: () => unwrap(ipcRenderer.invoke('ritual:list')),
+    configure: (id, config) => unwrap<void>(ipcRenderer.invoke('ritual:configure', id, config)),
+    enable: (id, enabled) => unwrap<void>(ipcRenderer.invoke('ritual:enable', id, enabled)),
+    trigger: (id) => unwrap<void>(ipcRenderer.invoke('ritual:trigger', id)),
   },
   app: {
     getPath: (name) => ipcRenderer.invoke('app:get-path', name),
