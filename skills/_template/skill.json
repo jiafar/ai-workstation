@@ -1,0 +1,29 @@
+{
+  "name": "my-skill",
+  "version": "1.0.0",
+  "description": "Description of what this skill does",
+  "author": "jarvis",
+  "category": "general",
+  "tags": [],
+  "inputs": [
+    {
+      "name": "input1",
+      "type": "string",
+      "description": "Input description",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "string",
+      "description": "Output description"
+    }
+  ],
+  "trigger": {
+    "command": "skill:my-skill",
+    "chatKeyword": "/my-skill"
+  },
+  "requires": ["ai"],
+  "promptFile": "prompt.md"
+}

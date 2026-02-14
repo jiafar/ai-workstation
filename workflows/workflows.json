@@ -1,0 +1,14 @@
+{
+  "workflows": [
+    {
+      "name": "daily-standup",
+      "file": "templates/daily-standup.json",
+      "description": "Daily standup preparation"
+    },
+    {
+      "name": "code-review-flow",
+      "file": "templates/code-review-flow.json",
+      "description": "Complete code review workflow"
+    }
+  ]
+}

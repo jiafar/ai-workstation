@@ -1,0 +1,11 @@
+{
+  "windowBounds": { "x": 100, "y": 100, "width": 1400, "height": 900 },
+  "sidebarWidth": 260,
+  "panelHeight": 250,
+  "activePanel": "explorer",
+  "activeBottomPanel": "terminal",
+  "showSidebar": true,
+  "showBottomPanel": true,
+  "theme": "dark",
+  "lastOpenedProject": null
+}

@@ -1,0 +1,46 @@
+{
+  "name": "daily-standup",
+  "description": "Daily standup preparation - checks tasks, git log, generates plan",
+  "trigger": {
+    "manual": true,
+    "event": "app:startup",
+    "schedule": "09:00"
+  },
+  "inputs": [
+    { "name": "date", "type": "string", "default": "today" }
+  ],
+  "steps": [
+    {
+      "id": "check-tasks",
+      "type": "ai",
+      "prompt": "Review the following tasks and identify incomplete items from yesterday and priorities for today.",
+      "inputs": { "date": "{{inputs.date}}" }
+    },
+    {
+      "id": "get-git-log",
+      "type": "shell",
+      "command": "git log --oneline --since='yesterday' --author=$(git config user.name)",
+      "dependsOn": []
+    },
+    {
+      "id": "generate-plan",
+      "type": "skill",
+      "skill": "work-log",
+      "inputs": {
+        "date": "{{inputs.date}}",
+        "gitLog": "{{steps.get-git-log.outputs.stdout}}",
+        "tasks": "{{steps.check-tasks.outputs.result}}"
+      },
+      "dependsOn": ["check-tasks", "get-git-log"]
+    },
+    {
+      "id": "summarize",
+      "type": "ai",
+      "prompt": "Based on the work log and pending tasks, create a concise standup summary with: 1) What was done yesterday, 2) What to do today, 3) Any blockers.",
+      "inputs": {
+        "workLog": "{{steps.generate-plan.outputs.result}}"
+      },
+      "dependsOn": ["generate-plan"]
+    }
+  ]
+}

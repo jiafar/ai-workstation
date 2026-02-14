@@ -1,0 +1,45 @@
+{
+  "name": "release-checklist",
+  "description": "Pre-release verification checklist",
+  "trigger": { "manual": true },
+  "inputs": [
+    { "name": "version", "type": "string" }
+  ],
+  "steps": [
+    {
+      "id": "run-tests",
+      "type": "shell",
+      "command": "npm test"
+    },
+    {
+      "id": "lint-check",
+      "type": "shell",
+      "command": "npm run lint",
+      "dependsOn": []
+    },
+    {
+      "id": "build-check",
+      "type": "shell",
+      "command": "npm run build",
+      "dependsOn": ["run-tests", "lint-check"]
+    },
+    {
+      "id": "verify-all",
+      "type": "condition",
+      "condition": "{{steps.run-tests.outputs.exitCode}} == 0 && {{steps.build-check.outputs.exitCode}} == 0",
+      "then": "generate-changelog",
+      "else": "report-failure",
+      "dependsOn": ["build-check"]
+    },
+    {
+      "id": "generate-changelog",
+      "type": "ai",
+      "prompt": "Generate a changelog for version {{inputs.version}} based on recent git commits."
+    },
+    {
+      "id": "report-failure",
+      "type": "ai",
+      "prompt": "Summarize the build/test failures and suggest fixes."
+    }
+  ]
+}

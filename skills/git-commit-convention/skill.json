@@ -1,0 +1,37 @@
+{
+  "name": "git-commit-convention",
+  "version": "1.0.0",
+  "description": "Generates conventional commit messages from git diffs",
+  "author": "jarvis",
+  "category": "git",
+  "tags": ["git", "commit", "conventional-commits", "productivity"],
+  "inputs": [
+    {
+      "name": "diff",
+      "type": "string",
+      "description": "Git diff output to analyze",
+      "required": false
+    },
+    {
+      "name": "staged",
+      "type": "boolean",
+      "description": "Whether to use staged changes only",
+      "required": false,
+      "default": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "string",
+      "description": "Generated commit message"
+    }
+  ],
+  "trigger": {
+    "command": "skill:git-commit",
+    "chatKeyword": "/commit"
+  },
+  "requires": ["ai", "git"],
+  "promptFile": "prompt.md",
+  "scriptFile": "index.ts"
+}

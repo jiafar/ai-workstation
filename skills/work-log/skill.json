@@ -1,0 +1,43 @@
+{
+  "name": "work-log",
+  "version": "1.0.0",
+  "description": "Generates a daily work log from git history and memory",
+  "author": "jarvis",
+  "category": "productivity",
+  "tags": ["work-log", "git", "productivity", "reporting"],
+  "inputs": [
+    {
+      "name": "date",
+      "type": "string",
+      "description": "Date for the work log (YYYY-MM-DD format, defaults to today)",
+      "required": false
+    },
+    {
+      "name": "branch",
+      "type": "string",
+      "description": "Specific branch to analyze (defaults to current branch)",
+      "required": false
+    },
+    {
+      "name": "format",
+      "type": "string",
+      "description": "Output format: markdown, plain, or detailed",
+      "required": false,
+      "default": "markdown"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "string",
+      "description": "Generated work log"
+    }
+  ],
+  "trigger": {
+    "command": "skill:work-log",
+    "chatKeyword": "/worklog"
+  },
+  "requires": ["ai", "git", "memory"],
+  "promptFile": "prompt.md",
+  "scriptFile": "index.ts"
+}

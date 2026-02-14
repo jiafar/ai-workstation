@@ -1,0 +1,46 @@
+{
+  "name": "code-review-flow",
+  "description": "Complete code review workflow with scoring and reporting",
+  "trigger": {
+    "manual": true,
+    "event": "git:pre-push"
+  },
+  "inputs": [
+    { "name": "branch", "type": "string", "default": "current" }
+  ],
+  "steps": [
+    {
+      "id": "get-diff",
+      "type": "shell",
+      "command": "git diff HEAD~1",
+      "inputs": { "branch": "{{inputs.branch}}" }
+    },
+    {
+      "id": "review",
+      "type": "skill",
+      "skill": "code-review",
+      "inputs": { "diff": "{{steps.get-diff.outputs.stdout}}" },
+      "dependsOn": ["get-diff"]
+    },
+    {
+      "id": "check-score",
+      "type": "condition",
+      "condition": "{{steps.review.outputs.score}} >= 7",
+      "then": "generate-report",
+      "else": "notify-issues",
+      "dependsOn": ["review"]
+    },
+    {
+      "id": "generate-report",
+      "type": "ai",
+      "prompt": "Generate a positive code review report summarizing the changes and quality assessment.",
+      "inputs": { "review": "{{steps.review.outputs}}" }
+    },
+    {
+      "id": "notify-issues",
+      "type": "ai",
+      "prompt": "Generate a detailed report of code issues found, grouped by severity, with suggested fixes.",
+      "inputs": { "issues": "{{steps.review.outputs.issues}}" }
+    }
+  ]
+}

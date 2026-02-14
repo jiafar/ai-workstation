@@ -1,0 +1,43 @@
+{
+  "name": "code-review",
+  "version": "1.0.0",
+  "description": "Performs automated code review on git diffs with quality scoring",
+  "author": "jarvis",
+  "category": "code-quality",
+  "tags": ["code-review", "quality", "git", "analysis"],
+  "inputs": [
+    {
+      "name": "diff",
+      "type": "string",
+      "description": "Git diff to review",
+      "required": false
+    },
+    {
+      "name": "staged",
+      "type": "boolean",
+      "description": "Whether to review staged changes only",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "context",
+      "type": "string",
+      "description": "Additional context about the changes",
+      "required": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "string",
+      "description": "Code review report with quality score and issues"
+    }
+  ],
+  "trigger": {
+    "command": "skill:code-review",
+    "chatKeyword": "/review"
+  },
+  "requires": ["ai", "git", "fs"],
+  "promptFile": "prompt.md",
+  "scriptFile": "index.ts"
+}
