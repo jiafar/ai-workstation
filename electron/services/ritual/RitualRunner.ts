@@ -119,7 +119,7 @@ export class RitualRunner {
   /**
    * Get status of a ritual run
    */
-  getStatus(runId: string): RitualRunRecord | null {
+  async getStatus(runId: string): Promise<RitualRunRecord | null> {
     // Check running rituals first
     const running = this.runningRituals.get(runId);
     if (running) {
@@ -127,7 +127,7 @@ export class RitualRunner {
     }
 
     // Query from database
-    return this.getRunRecordFromDb(runId);
+    return await this.getRunRecordFromDb(runId);
   }
 
   /**
@@ -141,8 +141,8 @@ export class RitualRunner {
     const params = ritualId ? [ritualId, limit] : [limit];
 
     try {
-      const rows = await this.db.all(query, params);
-      return rows.map(row => this.parseRunRecord(row));
+      const rows = this.db.query(query, params);
+      return rows.map((row: any) => this.parseRunRecord(row));
     } catch (error) {
       logger.error('Failed to get ritual history', error);
       return [];
@@ -280,7 +280,7 @@ export class RitualRunner {
     const sql = 'SELECT * FROM ritual_runs WHERE id = ?';
 
     try {
-      const row = await this.db.get(sql, [runId]);
+      const row = this.db.queryOne(sql, [runId]);
       return row ? this.parseRunRecord(row) : null;
     } catch (error) {
       logger.error('Failed to get run record', error);

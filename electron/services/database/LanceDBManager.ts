@@ -168,7 +168,7 @@ class LanceDBManager {
   /**
    * Create a new table
    */
-  async createTable(tableName: string, schema?: any): Promise<void> {
+  async createTable(tableName: string, _schema?: any): Promise<void> {
     if (!this.isInitialized) {
       throw new Error('LanceDB not initialized. Call init() first.');
     }

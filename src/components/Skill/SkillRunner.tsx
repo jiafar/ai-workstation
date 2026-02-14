@@ -18,11 +18,8 @@ export const SkillRunner: React.FC<SkillRunnerProps> = ({ skill }) => {
     setRunning(true);
     setOutput('');
     try {
-      const args = Object.entries(inputs)
-        .map(([key, value]) => `--${key}="${value}"`)
-        .join(' ');
-      const result = await window.api.skill.run(skill.name, args);
-      setOutput(result);
+      const result = await window.api.skill.run(skill.name, inputs);
+      setOutput(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
     } catch (error) {
       setOutput(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
@@ -37,29 +34,29 @@ export const SkillRunner: React.FC<SkillRunnerProps> = ({ skill }) => {
         <p className="text-text-secondary text-sm mt-1">{skill.description}</p>
       </div>
 
-      {skill.inputs && Object.entries(skill.inputs).length > 0 && (
+      {skill.inputs && skill.inputs.length > 0 && (
         <div className="mb-4 space-y-3">
           <h3 className="text-text-primary font-medium">Inputs</h3>
-          {Object.entries(skill.inputs).map(([key, config]) => (
-            <div key={key}>
+          {skill.inputs.map((inputDef) => (
+            <div key={inputDef.name}>
               <label className="block text-text-secondary text-sm mb-1">
-                {config.label || key}
-                {config.required && <span className="text-red-500 ml-1">*</span>}
+                {inputDef.label || inputDef.name}
+                {inputDef.required && <span className="text-red-500 ml-1">*</span>}
               </label>
-              {config.type === 'textarea' ? (
+              {inputDef.type === 'textarea' ? (
                 <textarea
-                  value={inputs[key] || ''}
-                  onChange={(e) => handleInputChange(key, e.target.value)}
-                  placeholder={config.placeholder}
+                  value={inputs[inputDef.name] || ''}
+                  onChange={(e) => handleInputChange(inputDef.name, e.target.value)}
+                  placeholder={inputDef.placeholder}
                   className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-accent-blue resize-none"
                   rows={4}
                 />
               ) : (
                 <input
-                  type={config.type || 'text'}
-                  value={inputs[key] || ''}
-                  onChange={(e) => handleInputChange(key, e.target.value)}
-                  placeholder={config.placeholder}
+                  type={inputDef.type || 'text'}
+                  value={inputs[inputDef.name] || ''}
+                  onChange={(e) => handleInputChange(inputDef.name, e.target.value)}
+                  placeholder={inputDef.placeholder}
                   className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-accent-blue"
                 />
               )}

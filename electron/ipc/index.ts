@@ -6,6 +6,9 @@ import { registerMemoryHandlers } from './memory'
 import { registerDatabaseHandlers } from './database'
 import { registerSkillHandlers } from './skill'
 import { registerWorkflowHandlers } from './workflow'
+import { registerRitualHandlers } from '../services/ritual/RitualManager'
+import { registerConfigHandlers } from './config'
+import { logger } from '../utils/logger'
 
 export function registerAllHandlers() {
   registerFilesystemHandlers()
@@ -16,7 +19,9 @@ export function registerAllHandlers() {
   registerDatabaseHandlers()
   registerSkillHandlers()
   registerWorkflowHandlers()
-  console.log('[IPC] All handlers registered')
+  registerRitualHandlers()
+  registerConfigHandlers()
+  logger.info('[IPC] All handlers registered')
 }
 
 export type { FileEntry } from './filesystem'

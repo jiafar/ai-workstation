@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
+import { logger } from '../../utils/logger'
 import { app } from 'electron'
 
 export interface PersonalIdentity {
@@ -57,7 +58,7 @@ export class PersonalMemory {
       return this.identity
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('Error loading USER.md:', error)
+        logger.error('Error loading USER.md:', error)
       }
       return undefined
     }
@@ -84,7 +85,7 @@ export class PersonalMemory {
       return this.soul
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('Error loading SOUL.md:', error)
+        logger.error('Error loading SOUL.md:', error)
       }
       return undefined
     }
@@ -110,7 +111,7 @@ export class PersonalMemory {
       return this.memoryL0
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('Error loading MEMORY-L0.md:', error)
+        logger.error('Error loading MEMORY-L0.md:', error)
       }
       return undefined
     }
@@ -136,7 +137,7 @@ export class PersonalMemory {
       return this.memoryL1
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('Error loading MEMORY.md:', error)
+        logger.error('Error loading MEMORY.md:', error)
       }
       return undefined
     }
@@ -169,7 +170,7 @@ export class PersonalMemory {
       return await fs.readFile(logFile, 'utf-8')
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error(`Error loading daily log for ${date}:`, error)
+        logger.error(`Error loading daily log for ${date}:`, error)
       }
       return undefined
     }
@@ -218,7 +219,7 @@ export class PersonalMemory {
       }
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('Error loading recent logs:', error)
+        logger.error('Error loading recent logs:', error)
       }
     }
 

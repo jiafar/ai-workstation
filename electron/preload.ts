@@ -18,19 +18,20 @@ export interface ElectronAPI {
   }
   // Terminal
   terminal: {
-    create: (id: string, cwd?: string) => Promise<void>
-    write: (id: string, data: string) => Promise<void>
-    resize: (id: string, cols: number, rows: number) => Promise<void>
-    kill: (id: string) => Promise<void>
+    create: (id: string, cwd?: string) => Promise<{ success: boolean; error?: string; pid?: number }>
+    write: (id: string, data: string) => Promise<{ success: boolean; error?: string }>
+    resize: (id: string, cols: number, rows: number) => Promise<{ success: boolean; error?: string }>
+    kill: (id: string) => Promise<{ success: boolean; error?: string }>
     onData: (callback: (id: string, data: string) => void) => () => void
     onExit: (callback: (id: string, code: number) => void) => () => void
   }
   // AI
   ai: {
-    chat: (messages: Array<{ role: string; content: string }>, options?: Record<string, unknown>) => Promise<string>
+    chat: (messages: Array<{ role: string; content: string }>, options?: Record<string, unknown>) => Promise<unknown>
     chatStream: (messages: Array<{ role: string; content: string }>, options?: Record<string, unknown>) => Promise<string>
-    onStreamChunk: (callback: (chunk: string) => void) => () => void
-    onStreamEnd: (callback: () => void) => () => void
+    onStreamChunk: (callback: (requestId: string, chunk: string) => void) => () => void
+    onStreamEnd: (callback: (requestId: string) => void) => () => void
+    onStreamError: (callback: (requestId: string, error: string) => void) => () => void
     embed: (text: string) => Promise<number[]>
   }
   // Git
@@ -63,8 +64,30 @@ export interface ElectronAPI {
   }
   // Database
   db: {
-    query: (sql: string, params?: unknown[]) => Promise<unknown[]>
-    run: (sql: string, params?: unknown[]) => Promise<{ changes: number; lastInsertRowid: number }>
+    getStats: () => Promise<unknown>
+    getSchema: () => Promise<unknown>
+    backup: (backupPath: string) => Promise<unknown>
+    optimize: () => Promise<unknown>
+    close: () => Promise<unknown>
+    getTableInfo: (tableName: string) => Promise<unknown>
+    memories: {
+      list: (params?: { type?: string }) => Promise<unknown[]>
+      get: (id: string) => Promise<unknown>
+      create: (params: { id: string; type: string; content: string; context?: string; timestamp: number; metadata?: string; embedding_id?: string }) => Promise<unknown>
+      delete: (id: string) => Promise<unknown>
+    }
+    conversations: {
+      list: (params?: { limit?: number }) => Promise<unknown[]>
+      create: (params: { id: string; title: string }) => Promise<unknown>
+    }
+    messages: {
+      list: (conversationId: string) => Promise<unknown[]>
+      create: (params: { id: string; conversation_id: string; role: string; content: string; timestamp: number; metadata?: string }) => Promise<unknown>
+    }
+    settings: {
+      get: (key: string) => Promise<unknown>
+      set: (params: { key: string; value: string }) => Promise<unknown>
+    }
   }
   // Skill
   skill: {
@@ -90,6 +113,16 @@ export interface ElectronAPI {
     configure: (id: string, config: unknown) => Promise<void>
     enable: (id: string, enabled: boolean) => Promise<void>
     trigger: (id: string) => Promise<void>
+  }
+  // Config
+  config: {
+    get: () => Promise<unknown>
+    getSection: (section: string) => Promise<unknown>
+    update: (updates: Record<string, unknown>) => Promise<void>
+    updateSection: (section: string, updates: Record<string, unknown>) => Promise<void>
+    reset: () => Promise<void>
+    resetSection: (section: string) => Promise<void>
+    getPath: () => Promise<string>
   }
   // App
   app: {
@@ -141,19 +174,24 @@ const api: ElectronAPI = {
     },
   },
   ai: {
-    chat: (messages, options) => ipcRenderer.invoke('ai:chat', messages, options),
-    chatStream: (messages, options) => ipcRenderer.invoke('ai:chat-stream', messages, options),
+    chat: (messages, options) => unwrap(ipcRenderer.invoke('ai:chat', messages, options)),
+    chatStream: (messages, options) => unwrap<string>(ipcRenderer.invoke('ai:chat-stream', messages, options)),
     onStreamChunk: (callback) => {
-      const handler = (_: unknown, chunk: string) => callback(chunk)
+      const handler = (_: unknown, requestId: string, chunk: string) => callback(requestId, chunk)
       ipcRenderer.on('ai:stream-chunk', handler)
       return () => ipcRenderer.removeListener('ai:stream-chunk', handler)
     },
     onStreamEnd: (callback) => {
-      const handler = () => callback()
+      const handler = (_: unknown, requestId: string) => callback(requestId)
       ipcRenderer.on('ai:stream-end', handler)
       return () => ipcRenderer.removeListener('ai:stream-end', handler)
     },
-    embed: (text) => ipcRenderer.invoke('ai:embed', text),
+    onStreamError: (callback) => {
+      const handler = (_: unknown, requestId: string, error: string) => callback(requestId, error)
+      ipcRenderer.on('ai:stream-error', handler)
+      return () => ipcRenderer.removeListener('ai:stream-error', handler)
+    },
+    embed: (text) => unwrap<number[]>(ipcRenderer.invoke('ai:embed', text)),
   },
   git: {
     status: (repoPath) => ipcRenderer.invoke('git:status', repoPath),
@@ -182,8 +220,30 @@ const api: ElectronAPI = {
     compress: () => unwrap<void>(ipcRenderer.invoke('memory:compress')),
   },
   db: {
-    query: (sql, params) => ipcRenderer.invoke('db:query', sql, params),
-    run: (sql, params) => ipcRenderer.invoke('db:run', sql, params),
+    getStats: () => unwrap(ipcRenderer.invoke('db:get-stats')),
+    getSchema: () => unwrap(ipcRenderer.invoke('db:get-schema')),
+    backup: (backupPath) => unwrap(ipcRenderer.invoke('db:backup', backupPath)),
+    optimize: () => unwrap(ipcRenderer.invoke('db:optimize')),
+    close: () => unwrap(ipcRenderer.invoke('db:close')),
+    getTableInfo: (tableName) => unwrap(ipcRenderer.invoke('db:get-table-info', tableName)),
+    memories: {
+      list: (params) => unwrap<unknown[]>(ipcRenderer.invoke('db:memories:list', params)),
+      get: (id) => unwrap(ipcRenderer.invoke('db:memories:get', id)),
+      create: (params) => unwrap(ipcRenderer.invoke('db:memories:create', params)),
+      delete: (id) => unwrap(ipcRenderer.invoke('db:memories:delete', id)),
+    },
+    conversations: {
+      list: (params) => unwrap<unknown[]>(ipcRenderer.invoke('db:conversations:list', params)),
+      create: (params) => unwrap(ipcRenderer.invoke('db:conversations:create', params)),
+    },
+    messages: {
+      list: (conversationId) => unwrap<unknown[]>(ipcRenderer.invoke('db:messages:list', conversationId)),
+      create: (params) => unwrap(ipcRenderer.invoke('db:messages:create', params)),
+    },
+    settings: {
+      get: (key) => unwrap(ipcRenderer.invoke('db:settings:get', key)),
+      set: (params) => unwrap(ipcRenderer.invoke('db:settings:set', params)),
+    },
   },
   skill: {
     list: () => unwrap(ipcRenderer.invoke('skill:list')),
@@ -218,6 +278,15 @@ const api: ElectronAPI = {
     configure: (id, config) => unwrap<void>(ipcRenderer.invoke('ritual:configure', id, config)),
     enable: (id, enabled) => unwrap<void>(ipcRenderer.invoke('ritual:enable', id, enabled)),
     trigger: (id) => unwrap<void>(ipcRenderer.invoke('ritual:trigger', id)),
+  },
+  config: {
+    get: () => unwrap(ipcRenderer.invoke('config:get')),
+    getSection: (section) => unwrap(ipcRenderer.invoke('config:get-section', section)),
+    update: (updates) => unwrap<void>(ipcRenderer.invoke('config:update', updates)),
+    updateSection: (section, updates) => unwrap<void>(ipcRenderer.invoke('config:update-section', section, updates)),
+    reset: () => unwrap<void>(ipcRenderer.invoke('config:reset')),
+    resetSection: (section) => unwrap<void>(ipcRenderer.invoke('config:reset-section', section)),
+    getPath: () => unwrap<string>(ipcRenderer.invoke('config:get-path')),
   },
   app: {
     getPath: (name) => ipcRenderer.invoke('app:get-path', name),

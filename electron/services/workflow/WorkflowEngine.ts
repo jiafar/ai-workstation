@@ -1,7 +1,7 @@
-import { WorkflowDefinition, WorkflowRun } from '../../../src/types';
+import { WorkflowDefinition } from '../../../src/types';
 import { logger } from '../../utils/logger';
 import { EventEmitter } from 'events';
-import { WorkflowParser, ExecutionPlan, ParsedStep } from './WorkflowParser';
+import { WorkflowParser, ExecutionPlan } from './WorkflowParser';
 import { StepExecutor, StepResult, VariableContext } from './StepExecutor';
 import { WorkflowState, WorkflowStateData } from './WorkflowState';
 import * as fs from 'fs/promises';
@@ -16,6 +16,19 @@ export interface WorkflowRunResult {
   duration: number;
 }
 
+/** Regex patterns matching environment variable names that should never be exposed */
+const SENSITIVE_ENV_PATTERNS = [
+  /key/i,
+  /secret/i,
+  /token/i,
+  /password/i,
+  /passwd/i,
+  /credential/i,
+  /auth/i,
+  /private/i,
+  /api[_-]?key/i,
+];
+
 export class WorkflowEngine extends EventEmitter {
   private static instance: WorkflowEngine | null = null;
   private parser: WorkflowParser;
@@ -24,6 +37,21 @@ export class WorkflowEngine extends EventEmitter {
   private workflowsDir: string;
   private runningWorkflows: Map<string, AbortController> = new Map();
   private initialized = false;
+
+  /**
+   * Filter out environment variables whose names match sensitive patterns.
+   */
+  static filterEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+    const filtered: Record<string, string> = {};
+    for (const [key, value] of Object.entries(env)) {
+      if (value === undefined) continue;
+      const isSensitive = SENSITIVE_ENV_PATTERNS.some((p) => p.test(key));
+      if (!isSensitive) {
+        filtered[key] = value;
+      }
+    }
+    return filtered;
+  }
 
   private constructor() {
     super();
@@ -134,7 +162,7 @@ export class WorkflowEngine extends EventEmitter {
     const variables: VariableContext = {
       inputs,
       steps: {},
-      env: process.env as Record<string, unknown>,
+      env: WorkflowEngine.filterEnv(process.env),
     };
 
     // Store outputs from each step

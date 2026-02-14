@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { WorkflowDefinition, WorkflowStep } from '../../types';
+import { WorkflowDefinition } from '../../types';
 import { StepNode } from './StepNode';
 
 interface WorkflowRunnerProps {
   workflow: WorkflowDefinition;
-  executionId?: string;
 }
 
 interface StepStatus {
@@ -14,9 +13,9 @@ interface StepStatus {
   error?: string;
 }
 
-export const WorkflowRunner: React.FC<WorkflowRunnerProps> = ({ workflow, executionId }) => {
+export const WorkflowRunner: React.FC<WorkflowRunnerProps> = ({ workflow }) => {
   const [stepStatuses, setStepStatuses] = useState<Map<string, StepStatus>>(new Map());
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs] = useState<string[]>([]);
 
   useEffect(() => {
     // Initialize step statuses
@@ -29,19 +28,6 @@ export const WorkflowRunner: React.FC<WorkflowRunnerProps> = ({ workflow, execut
     // TODO: Subscribe to workflow execution updates
     // This would listen to real-time updates from the backend
   }, [workflow]);
-
-  const addLog = (message: string) => {
-    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
-  };
-
-  const updateStepStatus = (stepId: string, status: Partial<StepStatus>) => {
-    setStepStatuses((prev) => {
-      const newMap = new Map(prev);
-      const current = newMap.get(stepId) || { stepId, status: 'pending' };
-      newMap.set(stepId, { ...current, ...status });
-      return newMap;
-    });
-  };
 
   return (
     <div className="flex flex-col h-full bg-bg-secondary">

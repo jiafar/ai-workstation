@@ -1,5 +1,5 @@
-import { ipcMain } from 'electron';
-import simpleGit, { SimpleGit, StatusResult, DiffResult, LogResult } from 'simple-git';
+import { ipcMain, type IpcMainInvokeEvent } from 'electron';
+import simpleGit, { SimpleGit, StatusResult, LogResult } from 'simple-git';
 
 const gitInstances = new Map<string, SimpleGit>();
 
@@ -12,7 +12,7 @@ function getGitInstance(repoPath: string): SimpleGit {
 
 export function registerGitHandlers() {
   // Initialize git repository
-  ipcMain.handle('git:init', async (_, repoPath: string) => {
+  ipcMain.handle('git:init', async (_event: IpcMainInvokeEvent, repoPath: string) => {
     try {
       const git = getGitInstance(repoPath);
       await git.init();
@@ -23,7 +23,7 @@ export function registerGitHandlers() {
   });
 
   // Get repository status
-  ipcMain.handle('git:status', async (_, repoPath: string) => {
+  ipcMain.handle('git:status', async (_event: IpcMainInvokeEvent, repoPath: string) => {
     try {
       const git = getGitInstance(repoPath);
       const status: StatusResult = await git.status();
@@ -50,7 +50,7 @@ export function registerGitHandlers() {
   });
 
   // Get diff
-  ipcMain.handle('git:diff', async (_, repoPath: string, options?: { cached?: boolean; file?: string }) => {
+  ipcMain.handle('git:diff', async (_event: IpcMainInvokeEvent, repoPath: string, options?: { cached?: boolean; file?: string }) => {
     try {
       const git = getGitInstance(repoPath);
       let diff: string;
@@ -68,7 +68,7 @@ export function registerGitHandlers() {
   });
 
   // Get commit log
-  ipcMain.handle('git:log', async (_, repoPath: string, options?: { maxCount?: number; file?: string }) => {
+  ipcMain.handle('git:log', async (_event: IpcMainInvokeEvent, repoPath: string, options?: { maxCount?: number; file?: string }) => {
     try {
       const git = getGitInstance(repoPath);
       const logOptions: any = {};
@@ -109,7 +109,7 @@ export function registerGitHandlers() {
   });
 
   // Add files to staging
-  ipcMain.handle('git:add', async (_, repoPath: string, files: string | string[]) => {
+  ipcMain.handle('git:add', async (_event: IpcMainInvokeEvent, repoPath: string, files: string | string[]) => {
     try {
       const git = getGitInstance(repoPath);
       await git.add(files);
@@ -120,7 +120,7 @@ export function registerGitHandlers() {
   });
 
   // Commit changes
-  ipcMain.handle('git:commit', async (_, repoPath: string, message: string) => {
+  ipcMain.handle('git:commit', async (_event: IpcMainInvokeEvent, repoPath: string, message: string) => {
     try {
       const git = getGitInstance(repoPath);
       const result = await git.commit(message);
@@ -138,7 +138,7 @@ export function registerGitHandlers() {
   });
 
   // Get branches
-  ipcMain.handle('git:branch', async (_, repoPath: string, options?: { all?: boolean }) => {
+  ipcMain.handle('git:branch', async (_event: IpcMainInvokeEvent, repoPath: string, options?: { all?: boolean }) => {
     try {
       const git = getGitInstance(repoPath);
       const branches = await git.branch(options?.all ? ['-a'] : []);
@@ -156,7 +156,7 @@ export function registerGitHandlers() {
   });
 
   // Checkout branch
-  ipcMain.handle('git:checkout', async (_, repoPath: string, branch: string, create?: boolean) => {
+  ipcMain.handle('git:checkout', async (_event: IpcMainInvokeEvent, repoPath: string, branch: string, create?: boolean) => {
     try {
       const git = getGitInstance(repoPath);
       if (create) {
@@ -171,7 +171,7 @@ export function registerGitHandlers() {
   });
 
   // Pull changes
-  ipcMain.handle('git:pull', async (_, repoPath: string, remote?: string, branch?: string) => {
+  ipcMain.handle('git:pull', async (_event: IpcMainInvokeEvent, repoPath: string, remote?: string, branch?: string) => {
     try {
       const git = getGitInstance(repoPath);
       const result = await git.pull(remote, branch);
@@ -190,7 +190,7 @@ export function registerGitHandlers() {
   });
 
   // Push changes
-  ipcMain.handle('git:push', async (_, repoPath: string, remote?: string, branch?: string) => {
+  ipcMain.handle('git:push', async (_event: IpcMainInvokeEvent, repoPath: string, remote?: string, branch?: string) => {
     try {
       const git = getGitInstance(repoPath);
       const result = await git.push(remote, branch);
@@ -201,7 +201,7 @@ export function registerGitHandlers() {
   });
 
   // Clone repository
-  ipcMain.handle('git:clone', async (_, repoUrl: string, localPath: string) => {
+  ipcMain.handle('git:clone', async (_event: IpcMainInvokeEvent, repoUrl: string, localPath: string) => {
     try {
       await simpleGit().clone(repoUrl, localPath);
       return { success: true };
@@ -211,7 +211,7 @@ export function registerGitHandlers() {
   });
 
   // Get remote information
-  ipcMain.handle('git:remote', async (_, repoPath: string) => {
+  ipcMain.handle('git:remote', async (_event: IpcMainInvokeEvent, repoPath: string) => {
     try {
       const git = getGitInstance(repoPath);
       const remotes = await git.getRemotes(true);
@@ -222,6 +222,97 @@ export function registerGitHandlers() {
           refs: remote.refs,
         })),
       };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Stash changes
+  ipcMain.handle('git:stash', async (_event: IpcMainInvokeEvent, repoPath: string, message?: string) => {
+    try {
+      const git = getGitInstance(repoPath);
+      await git.stash(['push', '-m', message || 'WIP']);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // List stashes
+  ipcMain.handle('git:stashList', async (_event: IpcMainInvokeEvent, repoPath: string) => {
+    try {
+      const git = getGitInstance(repoPath);
+      const stashes = await git.stashList();
+      return {
+        success: true,
+        data: stashes.all.map((stash) => ({
+          hash: stash.hash,
+          date: stash.date,
+          message: stash.message,
+        })),
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Pop stash
+  ipcMain.handle('git:stashPop', async (_event: IpcMainInvokeEvent, repoPath: string, index?: number) => {
+    try {
+      const git = getGitInstance(repoPath);
+      const args = index !== undefined ? [`stash@{${index}}`] : [];
+      await git.stash(['pop', ...args]);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Apply stash (without removing)
+  ipcMain.handle('git:stashApply', async (_event: IpcMainInvokeEvent, repoPath: string, index?: number) => {
+    try {
+      const git = getGitInstance(repoPath);
+      const args = index !== undefined ? [`stash@{${index}}`] : [];
+      await git.stash(['apply', ...args]);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Drop stash
+  ipcMain.handle('git:stashDrop', async (_event: IpcMainInvokeEvent, repoPath: string, index?: number) => {
+    try {
+      const git = getGitInstance(repoPath);
+      const args = index !== undefined ? [`stash@{${index}}`] : [];
+      await git.stash(['drop', ...args]);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Fetch from remote
+  ipcMain.handle('git:fetch', async (_event: IpcMainInvokeEvent, repoPath: string, remote?: string) => {
+    try {
+      const git = getGitInstance(repoPath);
+      if (remote) {
+        await git.fetch(remote);
+      } else {
+        await git.fetch();
+      }
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Merge branch
+  ipcMain.handle('git:merge', async (_event: IpcMainInvokeEvent, repoPath: string, branch: string) => {
+    try {
+      const git = getGitInstance(repoPath);
+      await git.merge([branch]);
+      return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

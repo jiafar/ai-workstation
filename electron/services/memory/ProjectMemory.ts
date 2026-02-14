@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
+import { logger } from '../../utils/logger'
 
 export interface ProjectContext {
   name: string
@@ -135,7 +136,7 @@ export class ProjectMemory {
       this.projectContext = this.parseProjectFile(content)
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('Error loading PROJECT.md:', error)
+        logger.error('Error loading PROJECT.md:', error)
       }
       // If file doesn't exist, that's okay
       this.projectContext = undefined
@@ -165,12 +166,12 @@ export class ProjectMemory {
           const decision = JSON.parse(content) as ProjectDecision
           this.decisions.push(decision)
         } catch (error) {
-          console.error(`Error loading decision file ${file}:`, error)
+          logger.error(`Error loading decision file ${file}:`, error)
         }
       }
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('Error loading decisions:', error)
+        logger.error('Error loading decisions:', error)
       }
     }
   }

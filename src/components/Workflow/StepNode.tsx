@@ -57,7 +57,7 @@ export const StepNode: React.FC<StepNodeProps> = ({ step, status }) => {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-2">
           <span className="text-xl">{getTypeIcon(step.type)}</span>
-          <span className="text-text-primary font-medium">{step.name}</span>
+          <span className="text-text-primary font-medium">{step.id}</span>
         </div>
         <div className="flex items-center space-x-2">
           <span className="text-lg">{getStatusIcon(status)}</span>
@@ -65,21 +65,15 @@ export const StepNode: React.FC<StepNodeProps> = ({ step, status }) => {
         </div>
       </div>
 
-      {step.skillName && (
+      {step.skill && (
         <div className="text-text-secondary text-sm mt-2">
-          Skill: <span className="text-accent-blue">{step.skillName}</span>
+          Skill: <span className="text-accent-blue">{step.skill}</span>
         </div>
       )}
 
-      {step.config && Object.keys(step.config).length > 0 && (
+      {step.inputs && Object.keys(step.inputs).length > 0 && (
         <div className="mt-2 text-xs text-text-muted">
-          {Object.keys(step.config).length} configuration{Object.keys(step.config).length !== 1 ? 's' : ''}
-        </div>
-      )}
-
-      {step.outputVariable && (
-        <div className="text-text-muted text-xs mt-2">
-          Output: <span className="text-text-secondary">{step.outputVariable}</span>
+          {Object.keys(step.inputs).length} input{Object.keys(step.inputs).length !== 1 ? 's' : ''}
         </div>
       )}
     </div>

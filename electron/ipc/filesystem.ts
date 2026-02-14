@@ -1,7 +1,8 @@
-import { ipcMain, dialog } from 'electron';
+import { ipcMain, dialog, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
+import { pathValidator } from '../utils/pathValidator';
 
 export interface FileEntry {
   name: string;
@@ -10,41 +11,56 @@ export interface FileEntry {
   children?: FileEntry[];
 }
 
+/**
+ * Validate a path against the sandbox. Returns resolved path or throws.
+ */
+function assertPath(filePath: string): string {
+  const result = pathValidator.validate(filePath);
+  if (!result.valid) {
+    throw new Error(`Access denied: ${result.error}`);
+  }
+  return result.resolved;
+}
+
 export function registerFilesystemHandlers() {
   // Read file contents
-  ipcMain.handle('fs:read', async (_, filePath: string) => {
+  ipcMain.handle('fs:read', async (_event: IpcMainInvokeEvent, filePath: string) => {
     try {
-      const content = await fs.readFile(filePath, 'utf-8');
+      const resolved = assertPath(filePath);
+      const content = await fs.readFile(resolved, 'utf-8');
       return { success: true, data: content };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   });
 
   // Write file contents
-  ipcMain.handle('fs:write', async (_, filePath: string, content: string) => {
+  ipcMain.handle('fs:write', async (_event: IpcMainInvokeEvent, filePath: string, content: string) => {
     try {
-      await fs.writeFile(filePath, content, 'utf-8');
+      const resolved = assertPath(filePath);
+      await fs.writeFile(resolved, content, 'utf-8');
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   });
 
   // Read directory contents
-  ipcMain.handle('fs:readdir', async (_, dirPath: string, recursive: boolean = false) => {
+  ipcMain.handle('fs:readdir', async (_event: IpcMainInvokeEvent, dirPath: string, recursive: boolean = false) => {
     try {
-      const entries = await readDirectory(dirPath, recursive);
+      const resolved = assertPath(dirPath);
+      const entries = await readDirectory(resolved, recursive);
       return { success: true, data: entries };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   });
 
   // Get file/directory stats
-  ipcMain.handle('fs:stat', async (_, filePath: string) => {
+  ipcMain.handle('fs:stat', async (_event: IpcMainInvokeEvent, filePath: string) => {
     try {
-      const stats = await fs.stat(filePath);
+      const resolved = assertPath(filePath);
+      const stats = await fs.stat(resolved);
       return {
         success: true,
         data: {
@@ -56,79 +72,97 @@ export function registerFilesystemHandlers() {
           atime: stats.atime,
         },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   });
 
   // Check if file/directory exists
-  ipcMain.handle('fs:exists', async (_, filePath: string) => {
+  ipcMain.handle('fs:exists', async (_event: IpcMainInvokeEvent, filePath: string) => {
     try {
-      await fs.access(filePath);
+      const resolved = assertPath(filePath);
+      await fs.access(resolved);
       return { success: true, data: true };
-    } catch {
+    } catch (error: unknown) {
+      // Distinguish between "access denied" and "not found"
+      const msg = (error as Error).message;
+      if (msg.startsWith('Access denied:')) {
+        return { success: false, error: msg };
+      }
       return { success: true, data: false };
     }
   });
 
   // Create directory
-  ipcMain.handle('fs:mkdir', async (_, dirPath: string, recursive: boolean = true) => {
+  ipcMain.handle('fs:mkdir', async (_event: IpcMainInvokeEvent, dirPath: string, recursive: boolean = true) => {
     try {
-      await fs.mkdir(dirPath, { recursive });
+      const resolved = assertPath(dirPath);
+      await fs.mkdir(resolved, { recursive });
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   });
 
   // Remove file/directory
-  ipcMain.handle('fs:remove', async (_, filePath: string) => {
+  ipcMain.handle('fs:remove', async (_event: IpcMainInvokeEvent, filePath: string) => {
     try {
-      const stats = await fs.stat(filePath);
+      const resolved = assertPath(filePath);
+      const stats = await fs.stat(resolved);
       if (stats.isDirectory()) {
-        await fs.rm(filePath, { recursive: true, force: true });
+        await fs.rm(resolved, { recursive: true, force: true });
       } else {
-        await fs.unlink(filePath);
+        await fs.unlink(resolved);
       }
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   });
 
   // Rename/move file/directory
-  ipcMain.handle('fs:rename', async (_, oldPath: string, newPath: string) => {
+  ipcMain.handle('fs:rename', async (_event: IpcMainInvokeEvent, oldPath: string, newPath: string) => {
     try {
-      await fs.rename(oldPath, newPath);
+      const resolvedOld = assertPath(oldPath);
+      const resolvedNew = assertPath(newPath);
+      await fs.rename(resolvedOld, resolvedNew);
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   });
 
   // Watch file/directory for changes
-  ipcMain.handle('fs:watch', async (event, filePath: string, watchId: string) => {
+  ipcMain.handle('fs:watch', async (event: IpcMainInvokeEvent, filePath: string) => {
     try {
-      const watcher = fsSync.watch(filePath, { recursive: true }, (eventType, filename) => {
-        event.sender.send('fs:watch:change', watchId, {
+      const resolved = assertPath(filePath);
+      const sender = event.sender as WebContents;
+      const watchId = resolved; // Use resolved path as watchId
+      const watcher = fsSync.watch(resolved, { recursive: true }, (eventType, filename) => {
+        sender.send('fs:watch:change', watchId, {
           eventType,
           filename,
-          path: filename ? path.join(filePath, filename) : filePath,
+          path: filename ? path.join(resolved, filename) : resolved,
         });
       });
 
-      // Store watcher for cleanup
-      event.sender.once('destroyed', () => {
+      // Cleanup watcher when window is destroyed
+      sender.once('destroyed', () => {
         watcher.close();
       });
 
-      return { success: true, watchId };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+      return { success: true, data: watchId };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   });
 
-  // Select directory dialog
+  // Unwatch (no-op for now since watchers are cleaned up on window destroy)
+  ipcMain.handle('fs:unwatch', async (_event: IpcMainInvokeEvent, _filePath: string) => {
+    return { success: true };
+  });
+
+  // Select directory dialog - user-initiated, always allowed
   ipcMain.handle('fs:select-directory', async () => {
     try {
       const result = await dialog.showOpenDialog({
@@ -139,9 +173,14 @@ export function registerFilesystemHandlers() {
         return { success: true, data: null };
       }
 
-      return { success: true, data: result.filePaths[0] };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+      const selectedDir = result.filePaths[0];
+
+      // Auto-add selected directory to allowed roots
+      pathValidator.addRoot(selectedDir);
+
+      return { success: true, data: selectedDir };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   });
 }
@@ -161,7 +200,7 @@ async function readDirectory(dirPath: string, recursive: boolean): Promise<FileE
     if (recursive && entry.isDirectory()) {
       try {
         fileEntry.children = await readDirectory(fullPath, true);
-      } catch (error) {
+      } catch {
         // Skip directories we can't read
         fileEntry.children = [];
       }

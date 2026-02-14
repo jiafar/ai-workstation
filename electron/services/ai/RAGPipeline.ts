@@ -174,9 +174,9 @@ class RAGPipeline {
     try {
       const includeContext = options.includeContext ?? true;
 
-      const messages = [
+      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
         {
-          role: 'system' as const,
+          role: 'system',
           content:
             'You are a helpful AI assistant. Use the provided context to answer questions accurately and concisely.',
         },
@@ -184,12 +184,12 @@ class RAGPipeline {
 
       if (includeContext && context) {
         messages.push({
-          role: 'user' as const,
+          role: 'user',
           content: `Context:\n${context}\n\nQuestion: ${query}`,
         });
       } else {
         messages.push({
-          role: 'user' as const,
+          role: 'user',
           content: query,
         });
       }
@@ -212,9 +212,9 @@ class RAGPipeline {
     try {
       const includeContext = options.includeContext ?? true;
 
-      const messages = [
+      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
         {
-          role: 'system' as const,
+          role: 'system',
           content:
             'You are a helpful AI assistant. Use the provided context to answer questions accurately and concisely.',
         },
@@ -222,12 +222,12 @@ class RAGPipeline {
 
       if (includeContext && context) {
         messages.push({
-          role: 'user' as const,
+          role: 'user',
           content: `Context:\n${context}\n\nQuestion: ${query}`,
         });
       } else {
         messages.push({
-          role: 'user' as const,
+          role: 'user',
           content: query,
         });
       }

@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { SkillDefinition } from '../../types';
 
+interface SkillFormData extends Partial<SkillDefinition> {
+  prompt?: string;
+  shortcut?: string;
+}
+
 interface SkillEditorProps {
   skill?: SkillDefinition;
   onSave?: (skill: SkillDefinition) => void;
@@ -8,23 +13,31 @@ interface SkillEditorProps {
 }
 
 export const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) => {
-  const [formData, setFormData] = useState<Partial<SkillDefinition>>(
-    skill || {
-      name: '',
-      description: '',
-      category: 'general',
-      prompt: '',
-      tags: [],
-    }
+  const [formData, setFormData] = useState<SkillFormData>(
+    skill
+      ? { ...skill, shortcut: skill.trigger?.shortcut }
+      : {
+          name: '',
+          description: '',
+          category: 'general',
+          prompt: '',
+          tags: [],
+        }
   );
 
-  const handleChange = (field: keyof SkillDefinition, value: any) => {
+  const handleChange = (field: keyof SkillFormData, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSave = () => {
     if (onSave && formData.name && formData.description && formData.prompt) {
-      onSave(formData as SkillDefinition);
+      const { prompt, shortcut, ...rest } = formData;
+      const definition: SkillDefinition = {
+        ...rest,
+        promptFile: prompt,
+        trigger: { ...rest.trigger, shortcut },
+      } as SkillDefinition;
+      onSave(definition);
     }
   };
 

@@ -4,10 +4,27 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { logger } from '../../utils/logger';
 
-export interface QueryResult {
-  rows: any[];
+export interface QueryResult<T = Record<string, unknown>> {
+  rows: T[];
   changes?: number;
   lastInsertRowid?: number;
+}
+
+/** Tables known to this application – used for safe iteration in getStats(). */
+const KNOWN_TABLES = [
+  'memories',
+  'conversations',
+  'messages',
+  'skills',
+  'rituals',
+  'workflows',
+  'settings',
+] as const;
+
+interface Migration {
+  version: number;
+  description: string;
+  up: string;
 }
 
 class SQLiteManager {
@@ -161,19 +178,60 @@ class SQLiteManager {
     `);
 
     logger.info('Database tables created successfully');
+
+    // Run migrations after initial table creation
+    this.runMigrations();
+  }
+
+  /**
+   * Schema migration system. Each migration runs once (tracked in schema_version table).
+   */
+  private runMigrations(): void {
+    if (!this.db) return;
+
+    // Create migration tracking table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_version (
+        version INTEGER PRIMARY KEY,
+        description TEXT NOT NULL,
+        applied_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+      )
+    `);
+
+    // Define migrations (add new ones here as the schema evolves)
+    const migrations: Migration[] = [
+      // Example: { version: 1, description: 'Add tags column to memories', up: 'ALTER TABLE memories ADD COLUMN tags TEXT' },
+    ];
+
+    const appliedRow = this.db.prepare('SELECT COALESCE(MAX(version), 0) as v FROM schema_version').get() as { v: number } | undefined;
+    const currentVersion = appliedRow?.v ?? 0;
+
+    const pending = migrations.filter((m) => m.version > currentVersion);
+    if (pending.length === 0) return;
+
+    const applyMigration = this.db.transaction(() => {
+      for (const m of pending) {
+        logger.info(`Running migration v${m.version}: ${m.description}`);
+        this.db!.exec(m.up);
+        this.db!.prepare('INSERT INTO schema_version (version, description) VALUES (?, ?)').run(m.version, m.description);
+      }
+    });
+
+    applyMigration();
+    logger.info(`Applied ${pending.length} migration(s), now at v${pending[pending.length - 1].version}`);
   }
 
   /**
    * Execute a SELECT query
    */
-  query(sql: string, params: any[] = []): any[] {
+  query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): T[] {
     if (!this.db) {
       throw new Error('Database not initialized');
     }
 
     try {
       const stmt = this.db.prepare(sql);
-      const rows = stmt.all(...params);
+      const rows = stmt.all(...params) as T[];
       logger.debug('Query executed', { sql: sql.substring(0, 100), rowCount: rows.length });
       return rows;
     } catch (error) {
@@ -185,16 +243,16 @@ class SQLiteManager {
   /**
    * Execute a single SELECT query and return one row
    */
-  queryOne(sql: string, params: any[] = []): any | null {
+  queryOne<T = Record<string, unknown>>(sql: string, params: unknown[] = []): T | null {
     if (!this.db) {
       throw new Error('Database not initialized');
     }
 
     try {
       const stmt = this.db.prepare(sql);
-      const row = stmt.get(...params);
+      const row = stmt.get(...params) as T | undefined;
       logger.debug('Query one executed', { sql: sql.substring(0, 100) });
-      return row || null;
+      return row ?? null;
     } catch (error) {
       logger.error('Query one failed', { sql, error });
       throw error;
@@ -204,7 +262,7 @@ class SQLiteManager {
   /**
    * Execute an INSERT, UPDATE, or DELETE statement
    */
-  run(sql: string, params: any[] = []): { changes: number; lastInsertRowid: number } {
+  run(sql: string, params: unknown[] = []): { changes: number; lastInsertRowid: number } {
     if (!this.db) {
       throw new Error('Database not initialized');
     }
@@ -248,15 +306,7 @@ class SQLiteManager {
    * Get database statistics
    */
   getStats(): Record<string, number> {
-    const tables = [
-      'memories',
-      'conversations',
-      'messages',
-      'skills',
-      'rituals',
-      'workflows',
-      'settings',
-    ];
+    const tables = KNOWN_TABLES;
 
     const stats: Record<string, number> = {};
 
@@ -294,9 +344,8 @@ class SQLiteManager {
     }
 
     try {
-      const backupDb = new Database(backupPath);
-      this.db.backup(backupDb);
-      backupDb.close();
+      // better-sqlite3 backup API: db.backup(destinationPath)
+      (this.db as any).backup(backupPath);
       logger.info('Database backed up successfully', { backupPath });
     } catch (error) {
       logger.error('Failed to backup database', error);

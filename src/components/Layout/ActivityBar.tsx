@@ -10,6 +10,7 @@ const panels: Array<{ id: PanelType; icon: string; label: string }> = [
   { id: 'memory', icon: '🧠', label: 'Memory' },
   { id: 'tasks', icon: '☑', label: 'Tasks' },
   { id: 'knowledge', icon: '📚', label: 'Knowledge' },
+  { id: 'chat', icon: '💬', label: 'AI Chat' },
   { id: 'settings', icon: '⚙', label: 'Settings' },
 ]
 

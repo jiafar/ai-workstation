@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { EventEmitter } from 'events';
 import { SkillLoader } from './SkillLoader';
+import { logger } from '../../utils/logger';
 
 export interface SkillInput {
   name: string;
@@ -59,17 +60,17 @@ export class SkillRegistry extends EventEmitter {
 
   async init(skillsDir: string): Promise<void> {
     if (this.initialized) {
-      console.warn('SkillRegistry already initialized');
+      logger.warn('SkillRegistry already initialized');
       return;
     }
 
-    console.log(`Initializing SkillRegistry with skills directory: ${skillsDir}`);
+    logger.info(`Initializing SkillRegistry with skills directory: ${skillsDir}`);
 
     try {
       // Check if skills directory exists
       await fs.access(skillsDir);
     } catch (error) {
-      console.error(`Skills directory does not exist: ${skillsDir}`);
+      logger.error(`Skills directory does not exist: ${skillsDir}`);
       throw new Error(`Skills directory not found: ${skillsDir}`);
     }
 
@@ -85,21 +86,21 @@ export class SkillRegistry extends EventEmitter {
 
     this.initialized = true;
     this.emit('initialized', { count: this.skills.size });
-    console.log(`SkillRegistry initialized with ${this.skills.size} skills`);
+    logger.info(`SkillRegistry initialized with ${this.skills.size} skills`);
   }
 
   private setupWatcher(skillsDir: string): void {
     this.watcher = this.loader.watch(skillsDir, async (event, skillDir) => {
-      console.log(`Skill ${event} detected: ${skillDir}`);
+      logger.info(`Skill ${event} detected: ${skillDir}`);
 
       if (event === 'change' || event === 'add') {
         try {
           const skill = await this.loader.load(skillDir);
           this.register(skill);
           this.emit('skill-updated', skill);
-          console.log(`Skill ${skill.name} hot-reloaded`);
+          logger.info(`Skill ${skill.name} hot-reloaded`);
         } catch (error) {
-          console.error(`Failed to reload skill from ${skillDir}:`, error);
+          logger.error(`Failed to reload skill from ${skillDir}:`, error);
           this.emit('skill-error', { skillDir, error });
         }
       } else if (event === 'remove') {
@@ -107,7 +108,7 @@ export class SkillRegistry extends EventEmitter {
         const skillName = path.basename(skillDir);
         this.unregister(skillName);
         this.emit('skill-removed', { name: skillName });
-        console.log(`Skill ${skillName} removed`);
+        logger.info(`Skill ${skillName} removed`);
       }
     });
   }
@@ -121,17 +122,17 @@ export class SkillRegistry extends EventEmitter {
     // Check for conflicts
     const existing = this.skills.get(skill.name);
     if (existing) {
-      console.warn(`Overwriting existing skill: ${skill.name}`);
+      logger.warn(`Overwriting existing skill: ${skill.name}`);
     }
 
     this.skills.set(skill.name, skill);
-    console.log(`Registered skill: ${skill.name} v${skill.version}`);
+    logger.info(`Registered skill: ${skill.name} v${skill.version}`);
   }
 
   unregister(name: string): boolean {
     const deleted = this.skills.delete(name);
     if (deleted) {
-      console.log(`Unregistered skill: ${name}`);
+      logger.info(`Unregistered skill: ${name}`);
     }
     return deleted;
   }
@@ -184,7 +185,7 @@ export class SkillRegistry extends EventEmitter {
     this.skills.clear();
     this.initialized = false;
     this.removeAllListeners();
-    console.log('SkillRegistry destroyed');
+    logger.info('SkillRegistry destroyed');
   }
 
   isInitialized(): boolean {

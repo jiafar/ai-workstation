@@ -4,7 +4,17 @@ import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import type { SkillDefinition } from './SkillRegistry';
 import { SkillRegistry } from './SkillRegistry';
-import { SkillContext, type SkillContextCapabilities } from './SkillContext';
+import { SkillContext } from './SkillContext';
+import { logger } from '../../utils/logger';
+
+export interface IMemoryService {
+  query(query: string, layer?: number): Promise<unknown[]>;
+  saveObservation(observation: Record<string, unknown>): Promise<string>;
+}
+
+export interface ILLMProvider {
+  complete(params: { prompt: string; temperature?: number; maxTokens?: number }): Promise<{ content?: string; text?: string }>;
+}
 
 export interface SkillRunRecord {
   id: string;
@@ -13,8 +23,8 @@ export interface SkillRunRecord {
   startTime: Date;
   endTime?: Date;
   duration?: number;
-  inputs: Record<string, any>;
-  outputs?: Record<string, any>;
+  inputs: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
   error?: string;
 }
 
@@ -22,16 +32,18 @@ export interface SkillRunContext {
   projectPath: string;
   userId?: string;
   sessionId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
+
+const MAX_RUNS_HISTORY = 1000;
 
 export class SkillRunner extends EventEmitter {
   private registry: SkillRegistry;
-  private memoryService: any;
-  private llmProvider: any;
+  private memoryService: IMemoryService;
+  private llmProvider: ILLMProvider;
   private runs: Map<string, SkillRunRecord> = new Map();
 
-  constructor(memoryService: any, llmProvider: any) {
+  constructor(memoryService: IMemoryService, llmProvider: ILLMProvider) {
     super();
     this.registry = SkillRegistry.getInstance();
     this.memoryService = memoryService;
@@ -40,7 +52,7 @@ export class SkillRunner extends EventEmitter {
 
   async run(
     skillName: string,
-    inputs: Record<string, any>,
+    inputs: Record<string, unknown>,
     context: SkillRunContext
   ): Promise<SkillRunRecord> {
     // Create run record
@@ -53,6 +65,7 @@ export class SkillRunner extends EventEmitter {
     };
 
     this.runs.set(run.id, run);
+    this.pruneHistory();
     this.emit('run-started', run);
 
     try {
@@ -94,7 +107,29 @@ export class SkillRunner extends EventEmitter {
     }
   }
 
-  validateInputs(skill: SkillDefinition, inputs: Record<string, any>): void {
+  private validateScriptPath(scriptPath: string, skillDir: string): void {
+    const resolved = path.resolve(scriptPath);
+    const resolvedDir = path.resolve(skillDir);
+    if (!resolved.startsWith(resolvedDir + path.sep) && resolved !== resolvedDir) {
+      throw new Error(`Script path "${resolved}" escapes skill directory "${resolvedDir}"`);
+    }
+    if (resolved.includes('\0')) {
+      throw new Error('Script path contains null bytes');
+    }
+  }
+
+  private pruneHistory(): void {
+    if (this.runs.size <= MAX_RUNS_HISTORY) return;
+    const entries = Array.from(this.runs.entries());
+    entries.sort((a, b) => a[1].startTime.getTime() - b[1].startTime.getTime());
+    const toRemove = entries.slice(0, entries.length - MAX_RUNS_HISTORY);
+    for (const [key] of toRemove) {
+      this.runs.delete(key);
+    }
+    logger.debug(`Pruned ${toRemove.length} old skill run records`);
+  }
+
+  validateInputs(skill: SkillDefinition, inputs: Record<string, unknown>): void {
     // Check required inputs
     for (const inputDef of skill.inputs) {
       if (inputDef.required && !(inputDef.name in inputs)) {
@@ -126,9 +161,9 @@ export class SkillRunner extends EventEmitter {
 
   private async executeSkill(
     skill: SkillDefinition,
-    inputs: Record<string, any>,
+    inputs: Record<string, unknown>,
     context: SkillRunContext
-  ): Promise<Record<string, any>> {
+  ): Promise<Record<string, unknown>> {
     const hasPrompt = !!skill.promptFile;
     const hasScript = !!skill.scriptFile;
 
@@ -149,12 +184,15 @@ export class SkillRunner extends EventEmitter {
 
   private async executeScript(
     skill: SkillDefinition,
-    inputs: Record<string, any>,
+    inputs: Record<string, unknown>,
     context: SkillRunContext
-  ): Promise<Record<string, any>> {
+  ): Promise<Record<string, unknown>> {
     this.emit('run-progress', { skillName: skill.name, step: 'script' });
 
     const scriptPath = path.join(skill.skillDir, skill.scriptFile!);
+
+    // Validate script path stays within skill directory
+    this.validateScriptPath(scriptPath, skill.skillDir);
 
     try {
       // Create skill context
@@ -166,7 +204,7 @@ export class SkillRunner extends EventEmitter {
       );
 
       // Import and execute script
-      // Note: In production, you may want to use a sandboxed execution environment
+      logger.warn(`Executing unsandboxed skill script: ${scriptPath}`);
       const scriptModule = await import(scriptPath);
 
       if (typeof scriptModule.default !== 'function') {
@@ -184,9 +222,9 @@ export class SkillRunner extends EventEmitter {
 
   private async executePrompt(
     skill: SkillDefinition,
-    inputs: Record<string, any>,
-    context: SkillRunContext
-  ): Promise<Record<string, any>> {
+    inputs: Record<string, unknown>,
+    _context: SkillRunContext
+  ): Promise<Record<string, unknown>> {
     this.emit('run-progress', { skillName: skill.name, step: 'prompt' });
 
     const promptPath = path.join(skill.skillDir, skill.promptFile!);
@@ -220,9 +258,9 @@ export class SkillRunner extends EventEmitter {
 
   private async executeScriptWithPrompt(
     skill: SkillDefinition,
-    inputs: Record<string, any>,
+    inputs: Record<string, unknown>,
     context: SkillRunContext
-  ): Promise<Record<string, any>> {
+  ): Promise<Record<string, unknown>> {
     // First, run the script
     const scriptOutputs = await this.executeScript(skill, inputs, context);
 
@@ -236,7 +274,7 @@ export class SkillRunner extends EventEmitter {
     return { ...scriptOutputs, ...promptOutputs };
   }
 
-  private interpolateTemplate(template: string, values: Record<string, any>): string {
+  private interpolateTemplate(template: string, values: Record<string, unknown>): string {
     let result = template;
 
     // Replace {{key}} with values

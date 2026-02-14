@@ -56,7 +56,7 @@ class ContextBuilder {
       includeShortTerm = true,
       includeWorking = true,
       includeEpisodic = true,
-      maxMemories = config.get('memory').vectorSearchLimit,
+      maxMemories = (config.get('memory') as any).vectorSearchLimit || 10,
       relevanceThreshold = 0.5,
       customSystemPrompt,
     } = options;

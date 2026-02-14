@@ -93,8 +93,10 @@ export interface SkillDefinition {
 
 export interface SkillInput {
   name: string
-  type: 'string' | 'number' | 'boolean' | 'enum' | 'file'
+  type: 'string' | 'number' | 'boolean' | 'enum' | 'file' | 'textarea'
   description: string
+  label?: string
+  placeholder?: string
   required?: boolean
   default?: unknown
   values?: string[]
@@ -119,6 +121,7 @@ export interface SkillRun {
 }
 
 export interface WorkflowDefinition {
+  id?: string
   name: string
   description: string
   trigger?: {
@@ -166,5 +169,5 @@ export interface RitualConfig {
   lastRun?: number
 }
 
-export type PanelType = 'explorer' | 'search' | 'git' | 'skills' | 'workflows' | 'rituals' | 'memory' | 'tasks' | 'knowledge' | 'settings'
+export type PanelType = 'explorer' | 'search' | 'git' | 'skills' | 'workflows' | 'rituals' | 'memory' | 'tasks' | 'knowledge' | 'chat' | 'settings'
 export type BottomPanelType = 'terminal' | 'chat' | 'problems' | 'output'

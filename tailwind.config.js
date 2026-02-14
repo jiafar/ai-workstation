@@ -1,32 +1,33 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./src/**/*.{js,jsx,ts,tsx}', './src/index.html'],
+  darkMode: ['class', '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
         bg: {
-          primary: '#1e1e2e',
-          secondary: '#181825',
-          tertiary: '#11111b',
-          surface: '#313244',
-          hover: '#45475a',
+          primary: 'var(--bg-primary)',
+          secondary: 'var(--bg-secondary)',
+          tertiary: 'var(--bg-tertiary)',
+          surface: 'var(--bg-surface)',
+          hover: 'var(--bg-hover)',
         },
         text: {
-          primary: '#cdd6f4',
-          secondary: '#a6adc8',
-          muted: '#6c7086',
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          muted: 'var(--text-muted)',
         },
         accent: {
-          blue: '#89b4fa',
-          green: '#a6e3a1',
-          red: '#f38ba8',
-          yellow: '#f9e2af',
-          purple: '#cba6f7',
-          teal: '#94e2d5',
+          blue: 'var(--accent-blue)',
+          green: 'var(--accent-green)',
+          red: 'var(--accent-red)',
+          yellow: 'var(--accent-yellow)',
+          purple: 'var(--accent-purple)',
+          teal: 'var(--accent-teal)',
         },
         border: {
-          DEFAULT: '#313244',
-          active: '#585b70',
+          DEFAULT: 'var(--border-default)',
+          active: 'var(--border-active)',
         },
       },
       fontFamily: {

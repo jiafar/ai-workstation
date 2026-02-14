@@ -20,12 +20,12 @@ export const WorkflowList: React.FC = () => {
     }
   };
 
-  const handleRunWorkflow = async (workflowId: string) => {
+  const handleRunWorkflow = async (workflowName: string) => {
     try {
-      await window.api.workflow.run(workflowId);
-      console.log(`Workflow ${workflowId} started`);
+      await window.api.workflow.run(workflowName);
+      console.log(`Workflow ${workflowName} started`);
     } catch (error) {
-      console.error(`Failed to run workflow ${workflowId}:`, error);
+      console.error(`Failed to run workflow ${workflowName}:`, error);
     }
   };
 
@@ -44,7 +44,7 @@ export const WorkflowList: React.FC = () => {
           <div className="space-y-3">
             {workflows.map((workflow) => (
               <div
-                key={workflow.id}
+                key={workflow.id ?? workflow.name}
                 className="bg-bg-surface border border-border-primary rounded p-4 hover:border-accent-blue transition-colors"
               >
                 <div className="flex items-start justify-between mb-2">
@@ -53,7 +53,7 @@ export const WorkflowList: React.FC = () => {
                     <p className="text-text-secondary text-sm mt-1">{workflow.description}</p>
                   </div>
                   <button
-                    onClick={() => handleRunWorkflow(workflow.id)}
+                    onClick={() => handleRunWorkflow(workflow.name)}
                     className="ml-4 px-4 py-1 bg-accent-blue text-white rounded text-sm hover:bg-opacity-90 transition-colors"
                   >
                     Run
@@ -62,7 +62,9 @@ export const WorkflowList: React.FC = () => {
 
                 {workflow.trigger && (
                   <div className="mt-3 text-xs text-text-muted">
-                    Trigger: <span className="text-text-secondary">{workflow.trigger.type}</span>
+                    Trigger: <span className="text-text-secondary">
+                      {workflow.trigger.manual ? 'manual' : workflow.trigger.event ?? workflow.trigger.schedule ?? 'none'}
+                    </span>
                     {workflow.trigger.schedule && (
                       <span> - {workflow.trigger.schedule}</span>
                     )}

@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { logger } from '../../utils/logger';
 
 const execAsync = promisify(exec);
 
@@ -207,7 +208,7 @@ export class SkillContext {
 
   private createTerminalCapability(): TerminalCapability {
     return {
-      exec: async (command: string, options?: any) => {
+      exec: async (command: string, options?: any): Promise<{ stdout: string; stderr: string }> => {
         try {
           const result = await execAsync(command, {
             cwd: this.projectPath,
@@ -216,8 +217,8 @@ export class SkillContext {
           });
 
           return {
-            stdout: result.stdout,
-            stderr: result.stderr
+            stdout: result.stdout.toString(),
+            stderr: result.stderr.toString()
           };
         } catch (error: any) {
           throw new Error(`Command failed: ${error.message}\n${error.stderr || ''}`);
@@ -289,19 +290,19 @@ export class SkillContext {
 
     return {
       info: (message: string, ...args: any[]) => {
-        console.log(prefix, message, ...args);
+        logger.info(prefix, message, ...args);
       },
 
       warn: (message: string, ...args: any[]) => {
-        console.warn(prefix, message, ...args);
+        logger.warn(prefix, message, ...args);
       },
 
       error: (message: string, ...args: any[]) => {
-        console.error(prefix, message, ...args);
+        logger.error(prefix, message, ...args);
       },
 
       debug: (message: string, ...args: any[]) => {
-        console.debug(prefix, message, ...args);
+        logger.debug(prefix, message, ...args);
       }
     };
   }

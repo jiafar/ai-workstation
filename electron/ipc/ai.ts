@@ -1,12 +1,8 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, type IpcMainInvokeEvent, BrowserWindow } from 'electron'
+import { randomUUID } from 'crypto'
 
 // Lazy-initialized LLM provider
 let llmProvider: any = null
-
-function getMainWindow(): BrowserWindow | null {
-  const windows = BrowserWindow.getAllWindows()
-  return windows.length > 0 ? windows[0] : null
-}
 
 function getLLMProvider() {
   if (!llmProvider) {
@@ -18,47 +14,74 @@ function getLLMProvider() {
 }
 
 export function registerAIHandlers() {
-  ipcMain.handle('ai:chat', async (_, messages: Array<{ role: string; content: string }>, options?: Record<string, unknown>) => {
-    try {
-      const provider = getLLMProvider()
-      const response = await provider.chat(messages, options)
-      return response
-    } catch (error: any) {
-      return `Error: ${error.message}`
+  ipcMain.handle(
+    'ai:chat',
+    async (
+      _event: IpcMainInvokeEvent,
+      messages: Array<{ role: string; content: string }>,
+      options?: Record<string, unknown>
+    ) => {
+      try {
+        const provider = getLLMProvider()
+        const response = await provider.chat(messages, options)
+        return { success: true, data: response }
+      } catch (error: any) {
+        return { success: false, error: error.message }
+      }
     }
-  })
+  )
 
-  ipcMain.handle('ai:chat-stream', async (_, messages: Array<{ role: string; content: string }>, options?: Record<string, unknown>) => {
-    try {
-      const provider = getLLMProvider()
-      const win = getMainWindow()
+  ipcMain.handle(
+    'ai:chat-stream',
+    async (
+      event: IpcMainInvokeEvent,
+      messages: Array<{ role: string; content: string }>,
+      options?: Record<string, unknown>
+    ) => {
+      const requestId = randomUUID()
+      const win = BrowserWindow.fromWebContents(event.sender)
 
-      const response = await provider.chatStream(messages, options, (chunk: string) => {
+      try {
+        const provider = getLLMProvider()
+
+        // Fire off the stream in the background so the handler can return requestId immediately
+        provider
+          .chatStream(messages, options, (chunk: string) => {
+            if (win && !win.isDestroyed()) {
+              win.webContents.send('ai:stream-chunk', requestId, chunk)
+            }
+          })
+          .then(() => {
+            if (win && !win.isDestroyed()) {
+              win.webContents.send('ai:stream-end', requestId)
+            }
+          })
+          .catch((err: any) => {
+            if (win && !win.isDestroyed()) {
+              win.webContents.send('ai:stream-error', requestId, err.message)
+            }
+          })
+
+        return { success: true, data: requestId }
+      } catch (error: any) {
         if (win && !win.isDestroyed()) {
-          win.webContents.send('ai:stream-chunk', chunk)
+          win.webContents.send('ai:stream-error', requestId, error.message)
         }
-      })
-
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('ai:stream-end')
+        return { success: false, error: error.message }
       }
+    }
+  )
 
-      return response
-    } catch (error: any) {
-      const win = getMainWindow()
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('ai:stream-end')
+  ipcMain.handle(
+    'ai:embed',
+    async (_event: IpcMainInvokeEvent, text: string) => {
+      try {
+        const provider = getLLMProvider()
+        const embedding = await provider.embed(text)
+        return { success: true, data: embedding }
+      } catch (error: any) {
+        return { success: false, error: error.message }
       }
-      return `Error: ${error.message}`
     }
-  })
-
-  ipcMain.handle('ai:embed', async (_, text: string) => {
-    try {
-      const provider = getLLMProvider()
-      return await provider.embed(text)
-    } catch (error: any) {
-      return []
-    }
-  })
+  )
 }

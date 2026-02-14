@@ -1,122 +1,130 @@
-import { app } from 'electron';
-import * as fs from 'fs';
-import * as path from 'path';
+import { app } from 'electron'
+import { join } from 'path'
+import { existsSync, mkdirSync } from 'fs'
 
-export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-}
-
-export interface LoggerOptions {
-  level?: LogLevel;
-  enableFileLogging?: boolean;
-  logDirectory?: string;
-}
+type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 class Logger {
-  private level: LogLevel;
-  private enableFileLogging: boolean;
-  private logDirectory: string;
-  private logStream: fs.WriteStream | null = null;
+  private logDir: string | null = null
+  private logFile: string | null = null
+  private isDev: boolean
+  private initialized: boolean = false
+  private consoleFailed: boolean = false
 
-  constructor(options: LoggerOptions = {}) {
-    this.level = options.level ?? LogLevel.INFO;
-    this.enableFileLogging = options.enableFileLogging ?? true;
-    this.logDirectory = options.logDirectory ?? path.join(app.getPath('userData'), 'logs');
-
-    if (this.enableFileLogging) {
-      this.initializeLogFile();
-    }
+  constructor() {
+    this.isDev = process.env.NODE_ENV === 'development'
   }
 
-  private initializeLogFile(): void {
+  private init(): void {
+    if (this.initialized) return
     try {
-      if (!fs.existsSync(this.logDirectory)) {
-        fs.mkdirSync(this.logDirectory, { recursive: true });
+      // 检查 app 是否已 ready
+      if (!app.isReady()) {
+        return // 稍后再试
       }
-
-      const logFileName = `app-${new Date().toISOString().split('T')[0]}.log`;
-      const logFilePath = path.join(this.logDirectory, logFileName);
-
-      this.logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
-    } catch (error) {
-      console.error('Failed to initialize log file:', error);
+      this.logDir = join(app.getPath('userData'), 'logs')
+      this.logFile = join(this.logDir, `app-${new Date().toISOString().split('T')[0]}.log`)
+      this.ensureLogDir()
+      this.initialized = true
+    } catch {
+      // 静默失败
+      this.consoleFailed = true
     }
   }
 
-  private formatMessage(level: string, message: string, data?: any): string {
-    const timestamp = new Date().toISOString();
-    const dataStr = data ? ` ${JSON.stringify(data)}` : '';
-    return `[${timestamp}] [${level}] ${message}${dataStr}`;
+  private ensureLogDir(): void {
+    if (!this.logDir) return
+    if (!existsSync(this.logDir)) {
+      mkdirSync(this.logDir, { recursive: true })
+    }
+  }
+
+  private formatMessage(level: LogLevel, message: string, ...args: any[]): string {
+    const timestamp = new Date().toISOString()
+    const argString = args.length > 0 ? ' ' + args.map(a => 
+      typeof a === 'object' ? JSON.stringify(a) : String(a)
+    ).join(' ') : ''
+    return `[${timestamp}] [${level.toUpperCase()}] ${message}${argString}`
   }
 
   private writeToFile(formattedMessage: string): void {
-    if (this.logStream && this.enableFileLogging) {
-      this.logStream.write(formattedMessage + '\n');
+    if (!this.initialized) {
+      this.init()
+    }
+    if (!this.logFile) return
+    try {
+      const fs = require('fs')
+      fs.appendFileSync(this.logFile, formattedMessage + '\n')
+    } catch {
+      // 忽略文件写入错误
     }
   }
 
-  private log(level: LogLevel, levelName: string, message: string, data?: any): void {
-    if (level < this.level) {
-      return;
+  private safeConsoleLog(method: (...args: any[]) => void, ...args: any[]): void {
+    if (this.consoleFailed) return
+    try {
+      method(...args)
+    } catch {
+      this.consoleFailed = true
     }
+  }
 
-    const formattedMessage = this.formatMessage(levelName, message, data);
-
-    // Write to console
-    switch (level) {
-      case LogLevel.DEBUG:
-        console.debug(formattedMessage);
-        break;
-      case LogLevel.INFO:
-        console.info(formattedMessage);
-        break;
-      case LogLevel.WARN:
-        console.warn(formattedMessage);
-        break;
-      case LogLevel.ERROR:
-        console.error(formattedMessage);
-        break;
+  private log(level: LogLevel, message: string, ...args: any[]): void {
+    const formatted = this.formatMessage(level, message, ...args)
+    
+    // 写入文件（如果已初始化）
+    this.writeToFile(formatted)
+    
+    // 开发环境输出到控制台（带错误捕获）
+    if (this.isDev) {
+      const consoleMethod = level === 'error' ? console.error : 
+                           level === 'warn' ? console.warn : 
+                           level === 'debug' ? console.debug : console.log
+      this.safeConsoleLog(consoleMethod, formatted)
     }
-
-    // Write to file
-    this.writeToFile(formattedMessage);
   }
 
-  debug(message: string, data?: any): void {
-    this.log(LogLevel.DEBUG, 'DEBUG', message, data);
+  debug(message: string, ...args: any[]): void {
+    this.log('debug', message, ...args)
   }
 
-  info(message: string, data?: any): void {
-    this.log(LogLevel.INFO, 'INFO', message, data);
+  info(message: string, ...args: any[]): void {
+    this.log('info', message, ...args)
   }
 
-  warn(message: string, data?: any): void {
-    this.log(LogLevel.WARN, 'WARN', message, data);
+  warn(message: string, ...args: any[]): void {
+    this.log('warn', message, ...args)
   }
 
-  error(message: string, data?: any): void {
-    this.log(LogLevel.ERROR, 'ERROR', message, data);
-  }
-
-  setLevel(level: LogLevel): void {
-    this.level = level;
-  }
-
-  close(): void {
-    if (this.logStream) {
-      this.logStream.end();
-      this.logStream = null;
-    }
+  error(message: string, ...args: any[]): void {
+    this.log('error', message, ...args)
   }
 }
 
-// Singleton instance
-export const logger = new Logger({
-  level: LogLevel.DEBUG,
-  enableFileLogging: true,
-});
+// 导出单例
+export const logger = new Logger()
+export default logger
 
-export default logger;
+// 全局错误处理，防止 EPIPE 崩溃
+process.on('uncaughtException', (error) => {
+  if ((error as any).code === 'EPIPE') {
+    logger.error('EPIPE error caught:', error.message)
+    // 不退出进程
+    return
+  }
+  // 其他错误正常处理
+  logger.error('Uncaught exception:', error)
+  process.exit(1)
+})
+
+process.stdout?.on?.('error', (error: any) => {
+  if (error.code === 'EPIPE') {
+    logger.warn('stdout EPIPE error ignored')
+  }
+})
+
+process.stderr?.on?.('error', (error: any) => {
+  if (error.code === 'EPIPE') {
+    logger.warn('stderr EPIPE error ignored')
+  }
+})

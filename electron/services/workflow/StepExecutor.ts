@@ -108,7 +108,7 @@ export class StepExecutor extends EventEmitter {
    */
   private async executeSkill(
     step: WorkflowStep,
-    context: StepContext,
+    _context: StepContext,
     variables: VariableContext
   ): Promise<Record<string, unknown>> {
     if (!step.skill) {
@@ -146,7 +146,7 @@ export class StepExecutor extends EventEmitter {
    */
   private async executeShell(
     step: WorkflowStep,
-    context: StepContext,
+    _context: StepContext,
     variables: VariableContext
   ): Promise<Record<string, unknown>> {
     if (!step.command) {
@@ -175,7 +175,7 @@ export class StepExecutor extends EventEmitter {
    */
   private async executeAI(
     step: WorkflowStep,
-    context: StepContext,
+    _context: StepContext,
     variables: VariableContext
   ): Promise<Record<string, unknown>> {
     if (!step.prompt) {
@@ -205,7 +205,7 @@ export class StepExecutor extends EventEmitter {
    */
   private async executeCondition(
     step: WorkflowStep,
-    context: StepContext,
+    _context: StepContext,
     variables: VariableContext
   ): Promise<Record<string, unknown>> {
     if (!step.condition) {
@@ -233,8 +233,8 @@ export class StepExecutor extends EventEmitter {
    */
   private async executeParallel(
     step: WorkflowStep,
-    context: StepContext,
-    variables: VariableContext
+    _context: StepContext,
+    _variables: VariableContext
   ): Promise<Record<string, unknown>> {
     if (!step.steps || step.steps.length === 0) {
       throw new Error('Parallel step must have a steps array');
@@ -378,7 +378,7 @@ export class StepExecutor extends EventEmitter {
    * Evaluate a condition expression
    * Simple implementation supporting basic comparisons
    */
-  private evaluateCondition(condition: string, variables: VariableContext): boolean {
+  private evaluateCondition(condition: string, _variables: VariableContext): boolean {
     try {
       // Very basic condition evaluation
       // In production, you'd want a proper expression parser

@@ -37,9 +37,9 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill, onRun }) => {
         )}
       </div>
 
-      {skill.shortcut && (
+      {skill.trigger?.shortcut && (
         <div className="mt-3 text-xs text-text-muted">
-          Shortcut: <kbd className="px-2 py-1 bg-bg-primary rounded">{skill.shortcut}</kbd>
+          Shortcut: <kbd className="px-2 py-1 bg-bg-primary rounded">{skill.trigger.shortcut}</kbd>
         </div>
       )}
     </div>

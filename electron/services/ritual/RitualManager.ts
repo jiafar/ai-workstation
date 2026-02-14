@@ -189,7 +189,7 @@ class RitualManager {
       case 'command':
         // Execute shell command
         const { exec } = require('child_process');
-        exec(action.target, (error: any, stdout: string, stderr: string) => {
+        exec(action.target, (error: any, stdout: string, _stderr: string) => {
           if (error) {
             logger.error('Command execution failed', { command: action.target, error });
           } else {

@@ -8,6 +8,7 @@ import { KnowledgePanel } from '../Knowledge/KnowledgePanel'
 import { SettingsPanel } from '../Settings/SettingsPanel'
 import { SearchPanel } from '../Layout/SearchPanel'
 import { GitPanel } from '../Layout/GitPanel'
+import { ChatPanel } from '../Chat/ChatPanel'
 
 export function Sidebar() {
   const { activePanel } = useAppStore()
@@ -22,6 +23,7 @@ export function Sidebar() {
       case 'memory': return <MemoryPanel />
       case 'tasks': return <TaskList />
       case 'knowledge': return <KnowledgePanel />
+      case 'chat': return <ChatPanel />
       case 'settings': return <SettingsPanel />
       default: return <FileExplorer />
     }

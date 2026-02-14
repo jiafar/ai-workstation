@@ -2,6 +2,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
+import { logger } from '../../utils/logger'
 
 export type ObservationType = 'insight' | 'pattern' | 'decision' | 'fact' | 'preference'
 
@@ -85,7 +86,7 @@ export class ObservationManager {
       return observation
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error(`Error loading observation ${uuid}:`, error)
+        logger.error(`Error loading observation ${uuid}:`, error)
       }
       return undefined
     }
@@ -198,7 +199,7 @@ export class ObservationManager {
       return true
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error(`Error deleting observation ${uuid}:`, error)
+        logger.error(`Error deleting observation ${uuid}:`, error)
       }
       return false
     }
@@ -263,14 +264,14 @@ export class ObservationManager {
           const observation = JSON.parse(content) as Observation
           this.cache.set(observation.uuid, observation)
         } catch (error) {
-          console.error(`Error loading observation file ${file}:`, error)
+          logger.error(`Error loading observation file ${file}:`, error)
         }
       }
 
       this.cacheLoaded = true
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('Error loading observations:', error)
+        logger.error('Error loading observations:', error)
       }
       this.cacheLoaded = true
     }

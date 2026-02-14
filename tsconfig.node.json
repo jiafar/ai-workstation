@@ -1,12 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "composite": true,
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "outDir": "./out/main",
-    "declaration": true,
-    "declarationMap": true
+    "types": ["node"]
   },
   "include": ["electron/**/*"]
 }

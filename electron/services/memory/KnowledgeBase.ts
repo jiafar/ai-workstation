@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
+import { logger } from '../../utils/logger'
 import { app } from 'electron'
 import { CodebookCompressor } from './CodebookCompressor'
 
@@ -51,7 +52,7 @@ export class KnowledgeBase {
       this.compressor.loadCodebook(codebookData)
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('Error loading codebook:', error)
+        logger.error('Error loading codebook:', error)
       }
       // If no codebook exists yet, that's okay
     }
@@ -119,7 +120,7 @@ export class KnowledgeBase {
       return entry
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error(`Error loading knowledge entry ${id}:`, error)
+        logger.error(`Error loading knowledge entry ${id}:`, error)
       }
       return undefined
     }
@@ -232,7 +233,7 @@ export class KnowledgeBase {
       return true
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error(`Error deleting knowledge entry ${id}:`, error)
+        logger.error(`Error deleting knowledge entry ${id}:`, error)
       }
       return false
     }
@@ -289,7 +290,7 @@ export class KnowledgeBase {
       try {
         return this.compressor.decompress(entry.compressedContent)
       } catch (error) {
-        console.error('Error decompressing content:', error)
+        logger.error('Error decompressing content:', error)
         return entry.content
       }
     }
@@ -328,10 +329,10 @@ export class KnowledgeBase {
    * Semantic search placeholder
    * In a full implementation, this would use vector embeddings
    */
-  async semanticSearch(embedding: number[], limit = 10): Promise<SearchResult[]> {
+  async semanticSearch(_embedding: number[], _limit = 10): Promise<SearchResult[]> {
     // Placeholder: In production, this would use LanceDB or similar
     // For now, fall back to text search
-    console.warn('semanticSearch not fully implemented, using text search fallback')
+    logger.warn('semanticSearch not fully implemented, using text search fallback')
     return []
   }
 
@@ -353,14 +354,14 @@ export class KnowledgeBase {
           const entry = JSON.parse(content) as KnowledgeEntry
           this.entriesCache.set(entry.id, entry)
         } catch (error) {
-          console.error(`Error loading knowledge entry file ${file}:`, error)
+          logger.error(`Error loading knowledge entry file ${file}:`, error)
         }
       }
 
       this.cacheLoaded = true
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('Error loading knowledge base:', error)
+        logger.error('Error loading knowledge base:', error)
       }
       this.cacheLoaded = true
     }

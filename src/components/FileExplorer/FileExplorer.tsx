@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import { useEffect } from 'react'
 import { useFileStore } from '../../store/fileStore'
 import { useEditorStore } from '../../store/editorStore'
 import type { FileEntry } from '../../types'
@@ -76,12 +76,15 @@ function FileNode({ file, depth }: FileNodeProps) {
 export function FileExplorer() {
   const { rootPath, files, setRootPath, loadDirectory } = useFileStore()
 
-  // Auto-open project folder on mount
+  // Auto-open last workspace or home directory on mount
   useEffect(() => {
     if (!rootPath) {
-      const projectPath = '/Users/jarvis/ai-workstation'
-      setRootPath(projectPath)
-      loadDirectory(projectPath)
+      window.api.app.getPath('home').then((homePath: string) => {
+        setRootPath(homePath)
+        loadDirectory(homePath)
+      }).catch(() => {
+        // fallback: do nothing, let user pick a folder
+      })
     }
   }, [])
 

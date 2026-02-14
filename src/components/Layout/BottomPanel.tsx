@@ -2,6 +2,7 @@ import { useAppStore } from '../../store/appStore'
 import { TerminalPanel } from '../Terminal/TerminalPanel'
 import { ChatPanel } from '../Chat/ChatPanel'
 import type { BottomPanelType } from '../../types'
+import { useTheme } from '../../hooks/useTheme'
 
 const tabs: Array<{ id: BottomPanelType; label: string }> = [
   { id: 'terminal', label: 'Terminal' },
@@ -12,6 +13,7 @@ const tabs: Array<{ id: BottomPanelType; label: string }> = [
 
 export function BottomPanel() {
   const { activeBottomPanel, setActiveBottomPanel, toggleBottomPanel } = useAppStore()
+  const { theme } = useTheme()
 
   return (
     <div className="h-full bg-bg-secondary flex flex-col border-t border-border">
@@ -42,7 +44,7 @@ export function BottomPanel() {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {activeBottomPanel === 'terminal' && <TerminalPanel />}
+        {activeBottomPanel === 'terminal' && <TerminalPanel theme={theme} />}
         {activeBottomPanel === 'chat' && <ChatPanel />}
         {activeBottomPanel === 'problems' && (
           <div className="p-4 text-text-muted text-sm">No problems detected.</div>

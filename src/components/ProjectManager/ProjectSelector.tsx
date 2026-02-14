@@ -7,29 +7,27 @@ interface Project {
   lastOpened: Date;
 }
 
-const mockProjects: Project[] = [
-  {
-    id: '1',
-    name: 'ai-workstation',
-    path: '/Users/jarvis/ai-workstation',
-    lastOpened: new Date(),
-  },
-  {
-    id: '2',
-    name: 'personal-website',
-    path: '/Users/jarvis/projects/personal-website',
-    lastOpened: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-  },
-  {
-    id: '3',
-    name: 'ml-experiments',
-    path: '/Users/jarvis/projects/ml-experiments',
-    lastOpened: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-  },
-];
-
 export const ProjectSelector: React.FC = () => {
-  const [projects, setProjects] = useState<Project[]>(mockProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  // Load recent projects from settings on mount
+  React.useEffect(() => {
+    window.api.db.settings.get('recentProjects').then((row: unknown) => {
+      if (row && typeof row === 'object' && 'value' in (row as Record<string, unknown>)) {
+        try {
+          const saved = JSON.parse((row as { value: string }).value) as Array<{ id: string; name: string; path: string; lastOpened: string }>;
+          setProjects(saved.map((p) => ({ ...p, lastOpened: new Date(p.lastOpened) })));
+        } catch { /* ignore parse errors */ }
+      }
+    }).catch(() => { /* settings not available yet */ });
+  }, []);
+
+  const persistProjects = (list: Project[]) => {
+    window.api.db.settings.set({
+      key: 'recentProjects',
+      value: JSON.stringify(list.slice(0, 20)),
+    }).catch(() => { /* best-effort persist */ });
+  };
 
   const handleOpenFolder = async () => {
     try {
@@ -42,8 +40,9 @@ export const ProjectSelector: React.FC = () => {
           path,
           lastOpened: new Date(),
         };
-        setProjects((prev) => [newProject, ...prev.filter((p) => p.path !== path)]);
-        // TODO: Actually open the project
+        const updated = [newProject, ...projects.filter((p) => p.path !== path)];
+        setProjects(updated);
+        persistProjects(updated);
         console.log('Opening project:', path);
       }
     } catch (error) {
@@ -52,14 +51,13 @@ export const ProjectSelector: React.FC = () => {
   };
 
   const handleOpenProject = (project: Project) => {
-    // TODO: Open the project
     console.log('Opening project:', project.path);
-    setProjects((prev) =>
-      [project, ...prev.filter((p) => p.id !== project.id)].map((p, index) => ({
-        ...p,
-        lastOpened: index === 0 ? new Date() : p.lastOpened,
-      }))
-    );
+    const updated = [
+      { ...project, lastOpened: new Date() },
+      ...projects.filter((p) => p.id !== project.id),
+    ];
+    setProjects(updated);
+    persistProjects(updated);
   };
 
   const formatDate = (date: Date) => {

@@ -60,7 +60,7 @@ export class CodebookCompressor {
     }
 
     let result = text
-    const tokens = this.tokenize(text)
+    // tokens variable removed as it was unused
 
     // Apply replacements from longest N-grams to shortest (greedy approach)
     const sortedEntries = Array.from(this.codebook.entries())

@@ -4,10 +4,13 @@ import { Sidebar } from './components/Layout/Sidebar'
 import { EditorArea } from './components/Editor/EditorArea'
 import { BottomPanel } from './components/Layout/BottomPanel'
 import { StatusBar } from './components/Layout/StatusBar'
+import { ErrorBoundary, PanelErrorBoundary } from './components/ErrorBoundary'
 import { useAppStore } from './store/appStore'
-import { useRef, useCallback } from 'react'
+import { useTheme } from './hooks/useTheme'
+import { useRef, useCallback, useEffect } from 'react'
 
-export default function App() {
+function AppContent() {
+  const { theme, isReady } = useTheme()
   const {
     sidebarWidth,
     panelHeight,
@@ -19,6 +22,13 @@ export default function App() {
 
   const sidebarResizing = useRef(false)
   const panelResizing = useRef(false)
+
+  // Apply theme to document
+  useEffect(() => {
+    if (isReady) {
+      document.documentElement.setAttribute('data-theme', theme)
+    }
+  }, [theme, isReady])
 
   const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -66,6 +76,15 @@ export default function App() {
     document.addEventListener('mouseup', onMouseUp)
   }, [panelHeight, setPanelHeight])
 
+  // Show loading state while theme is loading
+  if (!isReady) {
+    return (
+      <div className="flex items-center justify-center h-screen w-screen bg-bg-primary text-text-primary">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-blue"></div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-screen w-screen bg-bg-primary text-text-primary">
       {/* Title Bar */}
@@ -80,7 +99,9 @@ export default function App() {
         {showSidebar && (
           <>
             <div style={{ width: sidebarWidth }} className="flex-shrink-0">
-              <Sidebar />
+              <PanelErrorBoundary panelName="Sidebar">
+                <Sidebar />
+              </PanelErrorBoundary>
             </div>
             {/* Sidebar Resizer */}
             <div
@@ -94,7 +115,9 @@ export default function App() {
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Editor Area */}
           <div className="flex-1 overflow-hidden">
-            <EditorArea />
+            <PanelErrorBoundary panelName="Editor">
+              <EditorArea />
+            </PanelErrorBoundary>
           </div>
 
           {/* Bottom Panel Resizer */}
@@ -108,7 +131,9 @@ export default function App() {
           {/* Bottom Panel */}
           {showBottomPanel && (
             <div style={{ height: panelHeight }} className="flex-shrink-0">
-              <BottomPanel />
+              <PanelErrorBoundary panelName="Bottom Panel">
+                <BottomPanel />
+              </PanelErrorBoundary>
             </div>
           )}
         </div>
@@ -117,5 +142,13 @@ export default function App() {
       {/* Status Bar */}
       <StatusBar />
     </div>
+  )
+}
+
+export default function App() {
+  return (
+  <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   )
 }

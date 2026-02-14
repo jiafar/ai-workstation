@@ -1,6 +1,5 @@
-import simpleGit, { SimpleGit, StatusResult, DiffResult, LogResult } from 'simple-git';
+import simpleGit, { SimpleGit, StatusResult, LogResult } from 'simple-git';
 import { logger } from '../../utils/logger';
-import { config } from '../../utils/config';
 
 export interface GitStatus {
   current: string | null;
@@ -111,7 +110,7 @@ class GitService {
         args.push(options.file);
       }
 
-      const diff: DiffResult = await git.diff(args);
+      const diff: string = await git.diff(args);
       logger.debug('Git diff retrieved', { path, file: options?.file, cached: options?.cached });
       return diff;
     } catch (error) {

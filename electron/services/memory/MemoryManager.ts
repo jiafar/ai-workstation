@@ -1,11 +1,9 @@
 import { WorkingMemory, WorkingMemoryEntry } from './WorkingMemory'
 import { ProjectMemory, ProjectContext, ProjectDecision } from './ProjectMemory'
 import { PersonalMemory, PersonalIdentity, CoreMemory } from './PersonalMemory'
-import { KnowledgeBase, KnowledgeEntry, SearchResult } from './KnowledgeBase'
+import { KnowledgeBase, KnowledgeEntry } from './KnowledgeBase'
 import { CodebookCompressor } from './CodebookCompressor'
 import { ObservationManager, Observation, ObservationType } from './ObservationManager'
-import * as path from 'path'
-import { app } from 'electron'
 
 export interface SessionContext {
   identity?: PersonalIdentity

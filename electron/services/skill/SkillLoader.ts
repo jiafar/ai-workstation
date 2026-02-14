@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { watch, FSWatcher } from 'chokidar';
 import type { SkillDefinition } from './SkillRegistry';
+import { logger } from '../../utils/logger';
 
 export class SkillLoader {
   private static readonly SKILL_DEFINITION_FILE = 'skill.json';
@@ -51,15 +52,12 @@ export class SkillLoader {
         throw new Error(`Skill must have either ${SkillLoader.SKILL_PROMPT_FILE} or ${SkillLoader.SKILL_SCRIPT_FILE}`);
       }
 
-      // Add skill directory path
+      // Set skill directory
       definition.skillDir = skillDir;
 
       return definition as SkillDefinition;
     } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`Failed to load skill from ${skillDir}: ${error.message}`);
-      }
-      throw error;
+      throw new Error(`Failed to load skill from ${skillDir}: ${error}`);
     }
   }
 
@@ -67,15 +65,18 @@ export class SkillLoader {
     const skills: SkillDefinition[] = [];
 
     try {
+      // Check if directory exists
+      const stat = await fs.stat(skillsBaseDir);
+      if (!stat.isDirectory()) {
+        throw new Error(`Not a directory: ${skillsBaseDir}`);
+      }
+
+      // Read all entries
       const entries = await fs.readdir(skillsBaseDir, { withFileTypes: true });
 
       for (const entry of entries) {
-        if (!entry.isDirectory()) {
-          continue;
-        }
-
-        // Skip template and hidden directories
-        if (entry.name.startsWith('_') || entry.name.startsWith('.')) {
+        // Skip non-directories and hidden files
+        if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name.startsWith('_')) {
           continue;
         }
 
@@ -85,14 +86,14 @@ export class SkillLoader {
           const skill = await this.load(skillDir);
           skills.push(skill);
         } catch (error) {
-          console.error(`Failed to load skill from ${skillDir}:`, error);
+          logger.error(`Failed to load skill from ${skillDir}:`, error);
           // Continue loading other skills
         }
       }
 
       return skills;
     } catch (error) {
-      console.error(`Failed to load skills from ${skillsBaseDir}:`, error);
+      logger.error(`Failed to load skills from ${skillsBaseDir}:`, error);
       return [];
     }
   }
@@ -160,10 +161,10 @@ export class SkillLoader {
         }
       })
       .on('error', error => {
-        console.error('Skill watcher error:', error);
+        logger.error('Skill watcher error:', error);
       });
 
-    console.log(`Watching skills directory: ${skillsBaseDir}`);
+    logger.info(`Watching skills directory: ${skillsBaseDir}`);
 
     return watcher;
   }
@@ -186,49 +187,68 @@ export class SkillLoader {
       throw new Error('Field "version" must be a string');
     }
 
-    // Set defaults for optional fields
-    definition.tags = definition.tags || [];
-    definition.inputs = definition.inputs || [];
-    definition.outputs = definition.outputs || [];
-    definition.trigger = definition.trigger || {};
-    definition.requires = definition.requires || [];
-
-    // Validate inputs
     if (!Array.isArray(definition.inputs)) {
-      throw new Error('Field "inputs" must be an array');
+      definition.inputs = [];
     }
 
-    for (const input of definition.inputs) {
-      if (!input.name || !input.type) {
-        throw new Error('Each input must have "name" and "type"');
-      }
-      if (!['string', 'number', 'boolean', 'array', 'object'].includes(input.type)) {
-        throw new Error(`Invalid input type: ${input.type}`);
-      }
-    }
-
-    // Validate outputs
     if (!Array.isArray(definition.outputs)) {
-      throw new Error('Field "outputs" must be an array');
+      definition.outputs = [];
     }
 
-    for (const output of definition.outputs) {
-      if (!output.name || !output.type) {
-        throw new Error('Each output must have "name" and "type"');
-      }
-    }
-
-    // Validate requires
     if (!Array.isArray(definition.requires)) {
-      throw new Error('Field "requires" must be an array');
+      definition.requires = [];
     }
 
-    const validRequires = ['ai', 'memory', 'fs', 'terminal', 'git'];
-    for (const req of definition.requires) {
-      if (!validRequires.includes(req)) {
-        console.warn(`Unknown capability required: ${req}`);
-      }
+    if (!definition.trigger) {
+      definition.trigger = {};
     }
+
+    if (!Array.isArray(definition.tags)) {
+      definition.tags = [];
+    }
+  }
+
+  async getCapabilityFiles(skillDir: string): Promise<{
+    prompt?: string;
+    script?: string;
+  }> {
+    const result: { prompt?: string; script?: string } = {};
+
+    // Try to read prompt.md
+    try {
+      const promptPath = path.join(skillDir, SkillLoader.SKILL_PROMPT_FILE);
+      result.prompt = await fs.readFile(promptPath, 'utf-8');
+    } catch {
+      // Prompt file is optional
+    }
+
+    // Try to read index.ts
+    try {
+      const scriptPath = path.join(skillDir, SkillLoader.SKILL_SCRIPT_FILE);
+      result.script = await fs.readFile(scriptPath, 'utf-8');
+    } catch {
+      // Script file is optional
+    }
+
+    return result;
+  }
+
+  resolveRequiredCapabilities(requires: string[]): string[] {
+    const validCapabilities = [
+      'memory',
+      'ai',
+      'fs',
+      'terminal',
+      'git',
+      'log'
+    ];
+
+    return requires.map(req => {
+      if (!validCapabilities.includes(req)) {
+        logger.warn(`Unknown capability required: ${req}`);
+      }
+      return req;
+    });
   }
 }
 
