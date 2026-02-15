@@ -6,14 +6,22 @@ import { logger } from '../../utils/logger'
 export interface AppConfig {
   // AI 配置
   ai: {
-    defaultProvider: 'openai' | 'anthropic'
+    defaultProvider: 'openai' | 'anthropic' | 'kimi'
     openaiApiKey: string
     anthropicApiKey: string
+    kimiApiKey: string
     openaiBaseUrl?: string
     openaiModel: string
     anthropicModel: string
+    kimiModel: string
     maxTokens: number
     temperature: number
+  }
+  // 向量嵌入配置
+  embeddings: {
+    provider: 'openai' | 'jina'
+    jinaApiKey: string
+    jinaModel: string
   }
   // 界面配置
   ui: {
@@ -57,11 +65,18 @@ const defaultConfig: AppConfig = {
     defaultProvider: 'openai',
     openaiApiKey: '',
     anthropicApiKey: '',
+    kimiApiKey: '',
     openaiBaseUrl: '',
     openaiModel: 'gpt-4-turbo-preview',
     anthropicModel: 'claude-sonnet-4-5-20250929',
+    kimiModel: 'moonshot-v1-8k',
     maxTokens: 4096,
     temperature: 0.7,
+  },
+  embeddings: {
+    provider: 'jina',
+    jinaApiKey: 'jina_9b98e3e410ca4cec97afeeab355936d3sVcO4flRrhFxVZkPiobMmqs_MDqR',
+    jinaModel: 'jina-embeddings-v3',
   },
   ui: {
     theme: 'dark',
@@ -127,6 +142,7 @@ class ConfigManager {
   private mergeWithDefault(saved: Partial<AppConfig>): AppConfig {
     return {
       ai: { ...defaultConfig.ai, ...saved.ai },
+      embeddings: { ...defaultConfig.embeddings, ...saved.embeddings },
       ui: { ...defaultConfig.ui, ...saved.ui },
       editor: { ...defaultConfig.editor, ...saved.editor },
       terminal: { ...defaultConfig.terminal, ...saved.terminal },

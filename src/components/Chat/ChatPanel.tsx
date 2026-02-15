@@ -24,7 +24,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedProvider, setSelectedProvider] = useState<'anthropic' | 'openai'>('anthropic')
+  const [selectedProvider, setSelectedProvider] = useState<'anthropic' | 'openai' | 'kimi'>('anthropic')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const currentStreamId = useRef<string | null>(null)
@@ -158,11 +158,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
         <div className="flex items-center gap-2">
           <select
             value={selectedProvider}
-            onChange={(e) => setSelectedProvider(e.target.value as 'anthropic' | 'openai')}
+            onChange={(e) => setSelectedProvider(e.target.value as 'anthropic' | 'openai' | 'kimi')}
             className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
           >
             <option value="anthropic">Claude</option>
             <option value="openai">GPT</option>
+            <option value="kimi">Kimi</option>
           </select>
           <button
             onClick={clearChat}

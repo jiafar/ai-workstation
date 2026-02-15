@@ -2,14 +2,21 @@ import { create } from 'zustand'
 
 export interface AppConfig {
   ai: {
-    defaultProvider: 'openai' | 'anthropic'
+    defaultProvider: 'openai' | 'anthropic' | 'kimi'
     openaiApiKey: string
     anthropicApiKey: string
+    kimiApiKey: string
     openaiBaseUrl?: string
     openaiModel: string
     anthropicModel: string
+    kimiModel: string
     maxTokens: number
     temperature: number
+  }
+  embeddings: {
+    provider: 'openai' | 'jina'
+    jinaApiKey: string
+    jinaModel: string
   }
   ui: {
     theme: 'light' | 'dark' | 'system'

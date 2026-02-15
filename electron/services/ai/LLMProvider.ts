@@ -15,12 +15,12 @@ export interface ChatOptions {
   maxTokens?: number;
   topP?: number;
   model?: string;
-  provider?: 'openai' | 'anthropic';
+  provider?: 'openai' | 'anthropic' | 'kimi';
 }
 
 export interface EmbedOptions {
   model?: string;
-  provider?: 'openai' | 'anthropic';
+  provider?: 'openai' | 'jina';
 }
 
 export type StreamChunkCallback = (chunk: string) => void;
@@ -47,7 +47,7 @@ class LLMProvider {
     return configManager.getSection('ai');
   }
 
-  private getProvider(explicitProvider?: 'openai' | 'anthropic'): 'openai' | 'anthropic' {
+  private getProvider(explicitProvider?: 'openai' | 'anthropic' | 'kimi'): 'openai' | 'anthropic' | 'kimi' {
     if (explicitProvider) return explicitProvider;
     const aiConfig = this.getAIConfig();
     return aiConfig.defaultProvider || 'openai';
@@ -78,12 +78,27 @@ class LLMProvider {
     return new Anthropic({ apiKey });
   }
 
+  /**
+   * Create a fresh Kimi (Moonshot) client using the current config.
+   * Reuses OpenAI SDK with Moonshot-compatible API endpoint.
+   */
+  private createKimiClient(): OpenAI {
+    const aiConfig = this.getAIConfig();
+    const apiKey = aiConfig.kimiApiKey?.trim();
+    if (!apiKey) {
+      throw new Error('Kimi API key not configured. Please set it in Settings.');
+    }
+    return new OpenAI({ apiKey, baseURL: 'https://api.moonshot.cn/v1' });
+  }
+
   async chat(messages: Message[], options: ChatOptions = {}): Promise<string> {
     const provider = this.getProvider(options.provider);
 
     try {
       if (provider === 'openai') {
         return await this.chatOpenAI(messages, options);
+      } else if (provider === 'kimi') {
+        return await this.chatKimi(messages, options);
       } else {
         return await this.chatAnthropic(messages, options);
       }
@@ -147,6 +162,25 @@ class LLMProvider {
     return textContent && 'text' in textContent ? textContent.text : '';
   }
 
+  private async chatKimi(messages: Message[], options: ChatOptions): Promise<string> {
+    const client = this.createKimiClient();
+    const aiConfig = this.getAIConfig();
+    const model = options.model || aiConfig.kimiModel || 'moonshot-v1-8k';
+
+    const response = await client.chat.completions.create({
+      model,
+      messages: messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
+      top_p: options.topP ?? 1.0,
+    });
+
+    return response.choices[0]?.message?.content || '';
+  }
+
   async chatStream(
     messages: Message[],
     options: ChatOptions,
@@ -157,6 +191,8 @@ class LLMProvider {
     try {
       if (provider === 'openai') {
         await this.chatStreamOpenAI(messages, options, onChunk);
+      } else if (provider === 'kimi') {
+        await this.chatStreamKimi(messages, options, onChunk);
       } else {
         await this.chatStreamAnthropic(messages, options, onChunk);
       }
@@ -246,15 +282,48 @@ class LLMProvider {
     }
   }
 
+  private async chatStreamKimi(
+    messages: Message[],
+    options: ChatOptions,
+    onChunk: StreamChunkCallback
+  ): Promise<void> {
+    const client = this.createKimiClient();
+    const aiConfig = this.getAIConfig();
+    const model = options.model || aiConfig.kimiModel || 'moonshot-v1-8k';
+
+    const stream = await client.chat.completions.create({
+      model,
+      messages: messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
+      top_p: options.topP ?? 1.0,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        onChunk(content);
+      }
+    }
+  }
+
+  private getEmbeddingsConfig() {
+    const configManager = getConfigManager();
+    return configManager.getSection('embeddings');
+  }
+
   async embed(text: string, options: EmbedOptions = {}): Promise<number[]> {
-    const provider = this.getProvider(options.provider);
+    const embeddingsConfig = this.getEmbeddingsConfig();
+    const provider = options.provider || embeddingsConfig.provider || 'jina';
 
     try {
-      if (provider === 'openai') {
-        return await this.embedOpenAI(text, options);
+      if (provider === 'jina') {
+        return await this.embedJina(text, options);
       } else {
-        // Anthropic doesn't have a native embedding API, use OpenAI as fallback
-        logger.warn('Anthropic does not support embeddings, falling back to OpenAI');
         return await this.embedOpenAI(text, options);
       }
     } catch (error) {
@@ -273,6 +342,54 @@ class LLMProvider {
     });
 
     return response.data[0].embedding;
+  }
+
+  private async embedJina(text: string, options: EmbedOptions): Promise<number[]> {
+    const embeddingsConfig = this.getEmbeddingsConfig();
+    const apiKey = embeddingsConfig.jinaApiKey?.trim();
+    if (!apiKey) {
+      throw new Error('Jina API key not configured. Please set it in Settings.');
+    }
+    const model = options.model || embeddingsConfig.jinaModel || 'jina-embeddings-v3';
+
+    const requestData = JSON.stringify({
+      model,
+      input: [text],
+    });
+
+    return new Promise((resolve, reject) => {
+      const https = require('https');
+      const req = https.request(
+        {
+          hostname: 'api.jina.ai',
+          path: '/v1/embeddings',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+        },
+        (res: { statusCode?: number; on: (event: string, cb: (data: Buffer) => void) => void }) => {
+          let data = '';
+          res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(data);
+              if (res.statusCode !== 200) {
+                reject(new Error(`Jina API error (${res.statusCode}): ${parsed.detail || data}`));
+                return;
+              }
+              resolve(parsed.data[0].embedding);
+            } catch (e) {
+              reject(new Error(`Failed to parse Jina API response: ${data}`));
+            }
+          });
+        }
+      );
+      req.on('error', reject);
+      req.write(requestData);
+      req.end();
+    });
   }
 
   reinitialize(): void {

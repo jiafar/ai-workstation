@@ -1,14 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 
 interface AISettings {
-  defaultProvider: 'openai' | 'anthropic';
+  defaultProvider: 'openai' | 'anthropic' | 'kimi';
   openaiApiKey: string;
   anthropicApiKey: string;
+  kimiApiKey: string;
   openaiBaseUrl?: string;
   openaiModel: string;
   anthropicModel: string;
+  kimiModel: string;
   maxTokens: number;
   temperature: number;
+}
+
+interface EmbeddingsSettings {
+  provider: 'openai' | 'jina';
+  jinaApiKey: string;
+  jinaModel: string;
 }
 
 interface EditorSettings {
@@ -36,6 +44,7 @@ interface TerminalSettings {
 
 export const SettingsPanel: React.FC = () => {
   const [aiSettings, setAISettings] = useState<AISettings | null>(null);
+  const [embeddingsSettings, setEmbeddingsSettings] = useState<EmbeddingsSettings | null>(null);
   const [editorSettings, setEditorSettings] = useState<EditorSettings | null>(null);
   const [uiSettings, setUISettings] = useState<UISettings | null>(null);
   const [terminalSettings, setTerminalSettings] = useState<TerminalSettings | null>(null);
@@ -49,6 +58,7 @@ export const SettingsPanel: React.FC = () => {
         const config = await window.api.config.get() as Record<string, unknown>;
         if (config) {
           setAISettings(config.ai as AISettings);
+          setEmbeddingsSettings(config.embeddings as EmbeddingsSettings);
           setEditorSettings(config.editor as EditorSettings);
           setUISettings(config.ui as UISettings);
           setTerminalSettings(config.terminal as TerminalSettings);
@@ -66,7 +76,7 @@ export const SettingsPanel: React.FC = () => {
     setAISettings((prev) => {
       if (!prev) return prev;
       // Trim API keys to prevent invisible characters from copy-paste
-      const cleanValue = (field === 'openaiApiKey' || field === 'anthropicApiKey') && typeof value === 'string'
+      const cleanValue = (field === 'openaiApiKey' || field === 'anthropicApiKey' || field === 'kimiApiKey') && typeof value === 'string'
         ? value.trim()
         : value;
       const updated = { ...prev, [field]: cleanValue };
@@ -85,7 +95,17 @@ export const SettingsPanel: React.FC = () => {
     });
   }, []);
 
-  if (loading || !aiSettings || !editorSettings || !uiSettings || !terminalSettings) {
+  const updateEmbeddings = useCallback((field: keyof EmbeddingsSettings, value: unknown) => {
+    setEmbeddingsSettings((prev) => {
+      if (!prev) return prev;
+      const cleanValue = field === 'jinaApiKey' && typeof value === 'string' ? value.trim() : value;
+      const updated = { ...prev, [field]: cleanValue };
+      window.api.config.updateSection('embeddings', updated).catch(console.error);
+      return updated;
+    });
+  }, []);
+
+  if (loading || !aiSettings || !embeddingsSettings || !editorSettings || !uiSettings || !terminalSettings) {
     return (
       <div className="flex items-center justify-center h-full bg-bg-secondary">
         <div className="text-text-muted">Loading settings...</div>
@@ -116,6 +136,7 @@ export const SettingsPanel: React.FC = () => {
               >
                 <option value="openai">OpenAI</option>
                 <option value="anthropic">Anthropic</option>
+                <option value="kimi">Kimi</option>
               </select>
             </div>
 
@@ -147,6 +168,19 @@ export const SettingsPanel: React.FC = () => {
 
             <div>
               <label className="block text-text-secondary text-sm mb-1">
+                Kimi API Key
+              </label>
+              <input
+                type="password"
+                value={aiSettings.kimiApiKey}
+                onChange={(e) => updateAI('kimiApiKey', e.target.value)}
+                placeholder="sk-..."
+                className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-accent-blue"
+              />
+            </div>
+
+            <div>
+              <label className="block text-text-secondary text-sm mb-1">
                 OpenAI Model
               </label>
               <input
@@ -165,6 +199,18 @@ export const SettingsPanel: React.FC = () => {
                 type="text"
                 value={aiSettings.anthropicModel}
                 onChange={(e) => updateAI('anthropicModel', e.target.value)}
+                className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-blue"
+              />
+            </div>
+
+            <div>
+              <label className="block text-text-secondary text-sm mb-1">
+                Kimi Model
+              </label>
+              <input
+                type="text"
+                value={aiSettings.kimiModel}
+                onChange={(e) => updateAI('kimiModel', e.target.value)}
                 className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-blue"
               />
             </div>
@@ -195,6 +241,51 @@ export const SettingsPanel: React.FC = () => {
                   className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-blue"
                 />
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Embeddings Section */}
+        <section>
+          <h3 className="text-text-primary font-medium mb-3">向量嵌入</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-text-secondary text-sm mb-1">
+                Embeddings Provider
+              </label>
+              <select
+                value={embeddingsSettings.provider}
+                onChange={(e) => updateEmbeddings('provider', e.target.value)}
+                className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-blue"
+              >
+                <option value="jina">Jina</option>
+                <option value="openai">OpenAI</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-text-secondary text-sm mb-1">
+                Jina API Key
+              </label>
+              <input
+                type="password"
+                value={embeddingsSettings.jinaApiKey}
+                onChange={(e) => updateEmbeddings('jinaApiKey', e.target.value)}
+                placeholder="jina_..."
+                className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-accent-blue"
+              />
+            </div>
+
+            <div>
+              <label className="block text-text-secondary text-sm mb-1">
+                Jina Model
+              </label>
+              <input
+                type="text"
+                value={embeddingsSettings.jinaModel}
+                onChange={(e) => updateEmbeddings('jinaModel', e.target.value)}
+                className="w-full px-3 py-2 bg-bg-surface border border-border-primary rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-blue"
+              />
             </div>
           </div>
         </section>
