@@ -234,7 +234,7 @@ export class LLMProvider {
     try {
       const aiConfig = this.getAIConfig();
       const apiKey = aiConfig.anthropicApiKey?.trim();
-      const model = options.model || aiConfig.anthropicModel || 'claude-sonnet-4-20250529';
+      const model = options.model || aiConfig.anthropicModel || 'claude-opus-4-6';
 
       if (!apiKey) {
         throw new Error('Anthropic API key not configured. Please set it in Settings.');

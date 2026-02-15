@@ -68,7 +68,7 @@ const defaultConfig: AppConfig = {
     kimiApiKey: 'sk-98ZCSOfIMIzcJW65fk6Ef9avnnwtsZ4gKD4TCHIBqTvyuaHz',
     openaiBaseUrl: '',
     openaiModel: 'gpt-4-turbo-preview',
-    anthropicModel: 'claude-sonnet-4-5-20250929',
+    anthropicModel: 'claude-opus-4-6',
     kimiModel: 'kimi-k2.5',
     maxTokens: 4096,
     temperature: 0.7,

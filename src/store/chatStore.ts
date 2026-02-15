@@ -15,7 +15,7 @@ interface ChatState {
 export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   isStreaming: false,
-  currentModel: 'claude-sonnet-4-5-20250929',
+  currentModel: 'claude-opus-4-6',
 
   addMessage: (message) => set((state) => ({
     messages: [...state.messages, message],
