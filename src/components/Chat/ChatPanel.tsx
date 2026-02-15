@@ -24,7 +24,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedProvider, setSelectedProvider] = useState<'anthropic' | 'openai' | 'kimi'>('anthropic')
+  const [selectedProvider, setSelectedProvider] = useState<'anthropic' | 'openai' | 'kimi'>('kimi')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const currentStreamId = useRef<string | null>(null)

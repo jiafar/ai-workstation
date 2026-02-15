@@ -167,15 +167,17 @@ class LLMProvider {
     const aiConfig = this.getAIConfig();
     const model = options.model || aiConfig.kimiModel || 'kimi-k2.5';
 
+    // kimi-k2.5 thinking mode requires temperature=1, top_p=0.95
+    const isK2_5 = model.startsWith('kimi-k2');
     const response = await client.chat.completions.create({
       model,
       messages: messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
       })),
-      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
+      temperature: isK2_5 ? 1 : (options.temperature ?? aiConfig.temperature ?? 0.7),
       max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
-      top_p: options.topP ?? 1.0,
+      top_p: isK2_5 ? 0.95 : (options.topP ?? 1.0),
     });
 
     return response.choices[0]?.message?.content || '';
@@ -291,15 +293,17 @@ class LLMProvider {
     const aiConfig = this.getAIConfig();
     const model = options.model || aiConfig.kimiModel || 'kimi-k2.5';
 
+    // kimi-k2.5 thinking mode requires temperature=1, top_p=0.95
+    const isK2_5 = model.startsWith('kimi-k2');
     const stream = await client.chat.completions.create({
       model,
       messages: messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
       })),
-      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
+      temperature: isK2_5 ? 1 : (options.temperature ?? aiConfig.temperature ?? 0.7),
       max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
-      top_p: options.topP ?? 1.0,
+      top_p: isK2_5 ? 0.95 : (options.topP ?? 1.0),
       stream: true,
     });
 

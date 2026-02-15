@@ -65,7 +65,7 @@ const defaultConfig: AppConfig = {
     defaultProvider: 'openai',
     openaiApiKey: '',
     anthropicApiKey: '',
-    kimiApiKey: 'sk-kimi-0lNYE0VhYaygaa4g0GABC6JuLp4UakHbfAbpqjuzkNK0fgmEaz7k3PMFvlG1raDe',
+    kimiApiKey: 'sk-98ZCSOfIMIzcJW65fk6Ef9avnnwtsZ4gKD4TCHIBqTvyuaHz',
     openaiBaseUrl: '',
     openaiModel: 'gpt-4-turbo-preview',
     anthropicModel: 'claude-sonnet-4-5-20250929',
