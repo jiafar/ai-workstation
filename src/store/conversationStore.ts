@@ -176,12 +176,12 @@ export const useConversationStore = create<ConversationState>()(
         }))
       },
 
-      updateLocalLastMessage: (content: string) => {
+      updateLocalLastMessage: (chunk: string) => {
         set((state) => {
           if (state.messages.length === 0) return state
           const messages = [...state.messages]
           const lastMessage = messages[messages.length - 1]
-          messages[messages.length - 1] = { ...lastMessage, content }
+          messages[messages.length - 1] = { ...lastMessage, content: lastMessage.content + chunk }
           return { messages }
         })
       },

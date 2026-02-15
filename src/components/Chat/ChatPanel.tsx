@@ -196,7 +196,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                  className={`max-w-[80%] rounded-lg px-4 py-3 group ${
                     message.role === 'user'
                       ? 'bg-blue-600 text-white'
                       : message.role === 'system'
