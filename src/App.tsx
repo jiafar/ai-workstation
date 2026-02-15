@@ -4,6 +4,7 @@ import { Sidebar } from './components/Layout/Sidebar'
 import { EditorArea } from './components/Editor/EditorArea'
 import { BottomPanel } from './components/Layout/BottomPanel'
 import { StatusBar } from './components/Layout/StatusBar'
+import { ChatPanel } from './components/Chat/ChatPanel'
 import { ErrorBoundary, PanelErrorBoundary } from './components/ErrorBoundary'
 import { useAppStore } from './store/appStore'
 import { useTheme } from './hooks/useTheme'
@@ -14,6 +15,7 @@ function AppContent() {
   const {
     sidebarWidth,
     panelHeight,
+    activePanel,
     showSidebar,
     showBottomPanel,
     setSidebarWidth,
@@ -62,7 +64,7 @@ function AppContent() {
     const onMouseMove = (e: MouseEvent) => {
       if (!panelResizing.current) return
       const delta = startY - e.clientY
-      const newHeight = Math.max(100, Math.min(600, startHeight + delta))
+      const newHeight = Math.max(100, Math.min(900, startHeight + delta))
       setPanelHeight(newHeight)
     }
 
@@ -95,8 +97,8 @@ function AppContent() {
         {/* Activity Bar */}
         <ActivityBar />
 
-        {/* Sidebar */}
-        {showSidebar && (
+        {/* Sidebar — hidden when chat is active (ChatPanel has its own conversation list) */}
+        {showSidebar && activePanel !== 'chat' && (
           <>
             <div style={{ width: sidebarWidth }} className="flex-shrink-0">
               <PanelErrorBoundary panelName="Sidebar">
@@ -113,11 +115,17 @@ function AppContent() {
 
         {/* Editor + Bottom Panel */}
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Editor Area */}
+          {/* Main Content Area — Chat or Editor */}
           <div className="flex-1 overflow-hidden">
-            <PanelErrorBoundary panelName="Editor">
-              <EditorArea />
-            </PanelErrorBoundary>
+            {activePanel === 'chat' ? (
+              <PanelErrorBoundary panelName="Chat">
+                <ChatPanel />
+              </PanelErrorBoundary>
+            ) : (
+              <PanelErrorBoundary panelName="Editor">
+                <EditorArea />
+              </PanelErrorBoundary>
+            )}
           </div>
 
           {/* Bottom Panel Resizer */}

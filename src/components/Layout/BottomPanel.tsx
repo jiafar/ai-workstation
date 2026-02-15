@@ -12,8 +12,21 @@ const tabs: Array<{ id: BottomPanelType; label: string }> = [
 ]
 
 export function BottomPanel() {
-  const { activeBottomPanel, setActiveBottomPanel, toggleBottomPanel } = useAppStore()
+  const { activePanel, activeBottomPanel, setActiveBottomPanel, setActivePanel, toggleBottomPanel } = useAppStore()
   const { theme } = useTheme()
+
+  // When chat tab is clicked in bottom panel while chat is already in main area,
+  // just switch to the main chat view instead of creating a duplicate
+  const handleTabClick = (id: BottomPanelType) => {
+    if (id === 'chat') {
+      setActivePanel('chat')
+    } else {
+      setActiveBottomPanel(id)
+    }
+  }
+
+  // If chat is showing in main area, don't also show it in bottom panel
+  const showChatHere = activeBottomPanel === 'chat' && activePanel !== 'chat'
 
   return (
     <div className="h-full bg-bg-secondary flex flex-col border-t border-border">
@@ -27,7 +40,7 @@ export function BottomPanel() {
                 ? 'text-text-primary bg-bg-primary'
                 : 'text-text-muted hover:text-text-secondary'
             }`}
-            onClick={() => setActiveBottomPanel(id)}
+            onClick={() => handleTabClick(id)}
           >
             {label}
           </button>
@@ -45,7 +58,12 @@ export function BottomPanel() {
       {/* Content */}
       <div className="flex-1 overflow-hidden">
         {activeBottomPanel === 'terminal' && <TerminalPanel theme={theme} />}
-        {activeBottomPanel === 'chat' && <ChatPanel />}
+        {showChatHere && <ChatPanel />}
+        {activeBottomPanel === 'chat' && !showChatHere && (
+          <div className="flex items-center justify-center h-full text-text-muted text-sm">
+            AI Chat is open in the main area. Click 💬 in the activity bar to view it.
+          </div>
+        )}
         {activeBottomPanel === 'problems' && (
           <div className="p-4 text-text-muted text-sm">No problems detected.</div>
         )}

@@ -22,7 +22,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   sidebarWidth: 260,
-  panelHeight: 250,
+  panelHeight: 400,
   activePanel: 'explorer',
   activeBottomPanel: 'terminal',
   showSidebar: true,

@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useAIStream } from '../../hooks/useElectronAPI'
 import { useConversationStore } from '../../store/conversationStore'
+import { useMemoryStore } from '../../store/memoryStore'
 import { ConversationList } from './ConversationList'
+import { MemorySidebar } from './MemorySidebar'
 import type { ChatMessage } from '../../store/conversationStore'
 
 interface ChatPanelProps {
@@ -19,19 +21,23 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
     setLocalMessageStreaming,
     saveMessage,
   } = useConversationStore()
+  
+  const { enabled: memoryEnabled, getRelevantMemories, loadMemories } = useMemoryStore()
 
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<'anthropic' | 'openai' | 'kimi'>('kimi')
+  const [showMemory, setShowMemory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const currentStreamId = useRef<string | null>(null)
   const streamingMessageId = useRef<string | null>(null)
 
-  // Load conversations on mount
+  // Load conversations and memories on mount
   useEffect(() => {
     loadConversations()
-  }, [loadConversations])
+    loadMemories()
+  }, [loadConversations, loadMemories])
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -72,6 +78,31 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
     }
   )
 
+  const buildMessagesWithMemory = (userInput: string): Array<{ role: string; content: string }> => {
+    const conversationMessages = messages
+      .filter((m) => !m.isStreaming && m.role !== 'system')
+      .map((m) => ({ role: m.role, content: m.content }))
+    
+    // Add memory context if enabled
+    if (memoryEnabled) {
+      const relevantMemories = getRelevantMemories(userInput, 3)
+      if (relevantMemories.length > 0) {
+        const memoryContext = relevantMemories
+          .map((m) => `- ${m.content}`)
+          .join('\n')
+        
+        const systemMessage = {
+          role: 'system',
+          content: `以下是与当前对话相关的记忆信息，请在回答时参考：\n\n${memoryContext}`,
+        }
+        
+        return [systemMessage, ...conversationMessages, { role: 'user', content: userInput }]
+      }
+    }
+    
+    return [...conversationMessages, { role: 'user', content: userInput }]
+  }
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
     
@@ -105,14 +136,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
     // Save user message immediately
     await saveMessage(userMessage)
 
+    const userInput = input.trim()
     setInput('')
     setIsLoading(true)
 
-    // Build API messages
-    const conversationMessages = [
-      ...messages.filter((m) => !m.isStreaming && m.role !== 'system'),
-      userMessage,
-    ].map((m) => ({ role: m.role, content: m.content }))
+    // Build messages with memory context
+    const conversationMessages = buildMessagesWithMemory(userInput)
 
     try {
       await startStream(conversationMessages, {
@@ -160,6 +189,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
             {currentConversationId && (
               <span className="text-xs text-gray-500 ml-2">对话已保存</span>
             )}
+            {memoryEnabled && (
+              <span className="text-xs text-purple-400 ml-2 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                记忆已启用
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <select
@@ -171,6 +208,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
               <option value="openai">GPT</option>
               <option value="kimi">Kimi</option>
             </select>
+            <button
+              onClick={() => setShowMemory(!showMemory)}
+              className={`p-2 rounded-lg transition-colors ${
+                showMemory ? 'bg-purple-600 text-white' : 'hover:bg-gray-800 text-gray-400'
+              }`}
+              title="记忆系统"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -188,6 +241,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
               </svg>
               <p>开始一个新的对话</p>
               <p className="text-sm mt-2">在左侧创建或选择对话</p>
+              {memoryEnabled && (
+                <p className="text-sm mt-1 text-purple-400">记忆系统会自动使用相关记忆</p>
+              )}
             </div>
           ) : (
             messages.map((message) => (
@@ -272,6 +328,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
           <p className="text-xs text-gray-500 mt-2">AI 可能会生成不准确的信息，请验证重要信息。</p>
         </div>
       </div>
+
+      {/* Memory Sidebar */}
+      {showMemory && <MemorySidebar />}
     </div>
   )
 }
