@@ -25,7 +25,7 @@ export interface EmbedOptions {
 
 export type StreamChunkCallback = (chunk: string) => void;
 
-class LLMProvider {
+export class LLMProvider {
   private static instance: LLMProvider;
 
   private constructor() {
@@ -54,6 +54,13 @@ class LLMProvider {
   }
 
   /**
+   * Check if API key is an OAuth token
+   */
+  private isOAuthToken(apiKey: string): boolean {
+    return apiKey.startsWith('sk-ant-oat');
+  }
+
+  /**
    * Create a fresh OpenAI client using the current config.
    */
   private createOpenAIClient(): OpenAI {
@@ -68,6 +75,7 @@ class LLMProvider {
 
   /**
    * Create a fresh Anthropic client using the current config.
+   * Supports both standard API keys and OAuth tokens.
    */
   private createAnthropicClient(): Anthropic {
     const aiConfig = this.getAIConfig();
@@ -76,31 +84,16 @@ class LLMProvider {
     logger.info('[AI] Creating Anthropic client', {
       hasApiKey: !!apiKey,
       apiKeyLength: apiKey?.length,
-      apiKeyPrefix: apiKey ? `${apiKey.substring(0, 15)}...` : 'none'
+      apiKeyPrefix: apiKey ? `${apiKey.substring(0, 15)}...` : 'none',
+      isOAuth: apiKey ? this.isOAuthToken(apiKey) : false
     });
 
     if (!apiKey) {
       throw new Error('Anthropic API key not configured. Please set it in Settings.');
     }
 
-    // Check if this is an OAuth token (sk-ant-oat) which may not work with standard API
-    if (apiKey.startsWith('sk-ant-oat')) {
-      logger.warn('[AI] Detected OAuth token format. This may require browser-based authentication.');
-      throw new Error(
-        '检测到 OAuth Token 格式 (sk-ant-oat)。\n' +
-        '这种 Token 是 Claude Code 的临时 Token，不适用于独立 API 调用。\n\n' +
-        '解决方法：\n' +
-        '1. 访问 https://console.anthropic.com/settings/keys\n' +
-        '2. 创建新的 API Key（格式为 sk-ant-api03-...）\n' +
-        '3. 在设置中更新 API Key'
-      );
-    }
-
-    // Validate API key format
-    if (!apiKey.startsWith('sk-ant-api')) {
-      logger.warn('[AI] Anthropic API key has unexpected format', { prefix: apiKey.substring(0, 10) });
-    }
-
+    // For OAuth tokens, we'll handle them differently in the stream method
+    // For standard API keys, use the SDK
     return new Anthropic({ apiKey });
   }
 
@@ -154,38 +147,15 @@ class LLMProvider {
   }
 
   private async chatAnthropic(messages: Message[], options: ChatOptions): Promise<string> {
-    const client = this.createAnthropicClient();
     const aiConfig = this.getAIConfig();
-    const model = options.model || aiConfig.anthropicModel || 'claude-sonnet-4-5-20250929';
-
-    // Separate system messages from user/assistant messages
-    const systemMessages = messages.filter((msg) => msg.role === 'system');
-    let conversationMessages = messages.filter((msg) => msg.role !== 'system');
-
-    // Anthropic requires the first message to be 'user' role — drop leading assistant messages
-    while (conversationMessages.length > 0 && conversationMessages[0].role !== 'user') {
-      conversationMessages = conversationMessages.slice(1);
-    }
-
-    if (conversationMessages.length === 0) {
-      throw new Error('No user messages to send to Anthropic API');
-    }
-
-    const systemPrompt = systemMessages.map((msg) => msg.content).join('\n\n');
-
-    const response = await client.messages.create({
-      model,
-      max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
-      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
-      system: systemPrompt || undefined,
-      messages: conversationMessages.map((msg) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-      })),
+    const apiKey = aiConfig.anthropicApiKey?.trim();
+    
+    // Use OAuth-compatible streaming for all Anthropic calls
+    let fullContent = '';
+    await this.chatStreamAnthropic(messages, options, (chunk) => {
+      fullContent += chunk;
     });
-
-    const textContent = response.content.find((block) => block.type === 'text');
-    return textContent && 'text' in textContent ? textContent.text : '';
+    return fullContent;
   }
 
   private async chatKimi(messages: Message[], options: ChatOptions): Promise<string> {
@@ -193,17 +163,14 @@ class LLMProvider {
     const aiConfig = this.getAIConfig();
     const model = options.model || aiConfig.kimiModel || 'kimi-k2.5';
 
-    // kimi-k2.5 thinking mode requires temperature=1, top_p=0.95
-    const isK2_5 = model.startsWith('kimi-k2');
     const response = await client.chat.completions.create({
       model,
       messages: messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
       })),
-      temperature: isK2_5 ? 1 : (options.temperature ?? aiConfig.temperature ?? 0.7),
+      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
-      top_p: isK2_5 ? 0.95 : (options.topP ?? 1.0),
     });
 
     return response.choices[0]?.message?.content || '';
@@ -211,7 +178,7 @@ class LLMProvider {
 
   async chatStream(
     messages: Message[],
-    options: ChatOptions,
+    options: ChatOptions = {},
     onChunk: StreamChunkCallback
   ): Promise<void> {
     const provider = this.getProvider(options.provider);
@@ -265,9 +232,17 @@ class LLMProvider {
     onChunk: StreamChunkCallback
   ): Promise<void> {
     try {
-      const client = this.createAnthropicClient();
       const aiConfig = this.getAIConfig();
-      const model = options.model || aiConfig.anthropicModel || 'claude-sonnet-4-5-20250929';
+      const apiKey = aiConfig.anthropicApiKey?.trim();
+      const model = options.model || aiConfig.anthropicModel || 'claude-sonnet-4-20250529';
+
+      if (!apiKey) {
+        throw new Error('Anthropic API key not configured. Please set it in Settings.');
+      }
+
+      // Check if using OAuth token
+      const isOAuth = this.isOAuthToken(apiKey);
+      logger.info('[AI] Anthropic stream configuration', { isOAuth, model });
 
       // Separate system messages from user/assistant messages
       const systemMessages = messages.filter((msg) => msg.role === 'system');
@@ -284,32 +259,88 @@ class LLMProvider {
 
       const systemPrompt = systemMessages.map((msg) => msg.content).join('\n\n');
 
-      logger.info('[AI] chatStreamAnthropic calling API', {
+      logger.info('[AI] Starting Anthropic stream', {
         model,
         messageCount: conversationMessages.length,
-        firstRole: conversationMessages[0]?.role,
-        systemPromptLength: systemPrompt?.length || 0,
+        hasSystemPrompt: !!systemPrompt,
+        isOAuth
       });
 
-      logger.info('[AI] Starting Anthropic stream with model:', model);
-
-      const stream = await client.messages.stream({
+      // Prepare request body
+      const requestBody: any = {
         model,
         max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
         temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
-        system: systemPrompt || undefined,
         messages: conversationMessages.map((msg) => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
         })),
+        stream: true
+      };
+
+      if (systemPrompt) {
+        requestBody.system = systemPrompt;
+      }
+
+      // Prepare headers based on token type
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'Accept': 'text/event-stream',
+      };
+
+      if (isOAuth) {
+        // OAuth tokens use Bearer authorization with special beta header
+        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers['anthropic-beta'] = 'oauth-2025-04-20';
+        logger.info('[AI] Using OAuth authentication');
+      } else {
+        // Standard API keys use x-api-key
+        headers['x-api-key'] = apiKey;
+      }
+
+      // Make streaming request using fetch
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
       });
 
-      for await (const event of stream) {
-        if (
-          event.type === 'content_block_delta' &&
-          event.delta.type === 'text_delta'
-        ) {
-          onChunk(event.delta.text);
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error('[AI] Anthropic API error', { status: response.status, error: errorText });
+        throw new Error(`Anthropic API error: ${response.status} - ${errorText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('No response body from Anthropic API');
+      }
+
+      // Process the stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+
+            try {
+              const event = JSON.parse(data);
+              if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+                onChunk(event.delta.text);
+              }
+            } catch (e) {
+              // Ignore parse errors for non-JSON lines
+            }
+          }
         }
       }
 
@@ -319,7 +350,6 @@ class LLMProvider {
         error: error.message,
         errorType: error.constructor?.name,
         status: error.status,
-        response: error.response?.data,
       });
       throw error;
     }
@@ -377,74 +407,45 @@ class LLMProvider {
     }
   }
 
-  private async embedOpenAI(text: string, options: EmbedOptions): Promise<number[]> {
-    const client = this.createOpenAIClient();
-    const model = options.model || 'text-embedding-3-small';
-
-    const response = await client.embeddings.create({
-      model,
-      input: text,
-    });
-
-    return response.data[0].embedding;
-  }
-
-  private async embedJina(text: string, options: EmbedOptions): Promise<number[]> {
+  private async embedJina(text: string, _options: EmbedOptions): Promise<number[]> {
     const embeddingsConfig = this.getEmbeddingsConfig();
     const apiKey = embeddingsConfig.jinaApiKey?.trim();
     if (!apiKey) {
       throw new Error('Jina API key not configured. Please set it in Settings.');
     }
-    const model = options.model || embeddingsConfig.jinaModel || 'jina-embeddings-v3';
 
-    const requestData = JSON.stringify({
-      model,
-      input: [text],
+    const response = await fetch('https://api.jina.ai/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: embeddingsConfig.jinaModel || 'jina-embeddings-v3',
+        input: text,
+      }),
     });
 
-    return new Promise((resolve, reject) => {
-      const https = require('https');
-      const req = https.request(
-        {
-          hostname: 'api.jina.ai',
-          path: '/v1/embeddings',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-        },
-        (res: { statusCode?: number; on: (event: string, cb: (data: Buffer) => void) => void }) => {
-          let data = '';
-          res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
-          res.on('end', () => {
-            try {
-              const parsed = JSON.parse(data);
-              if (res.statusCode !== 200) {
-                reject(new Error(`Jina API error (${res.statusCode}): ${parsed.detail || data}`));
-                return;
-              }
-              resolve(parsed.data[0].embedding);
-            } catch (e) {
-              reject(new Error(`Failed to parse Jina API response: ${data}`));
-            }
-          });
-        }
-      );
-      req.on('error', reject);
-      req.write(requestData);
-      req.end();
-    });
+    if (!response.ok) {
+      throw new Error(`Jina API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.data[0].embedding;
   }
 
-  reinitialize(): void {
-    // No-op: clients are now created fresh on each call
-    logger.info('LLMProvider reinitialize called (no-op, clients created per-call)');
+  private async embedOpenAI(text: string, _options: EmbedOptions): Promise<number[]> {
+    const aiConfig = this.getAIConfig();
+    const client = this.createOpenAIClient();
+
+    const response = await client.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: text,
+    });
+
+    return response.data[0].embedding;
   }
 }
 
-// Singleton export
 export const llmProvider = LLMProvider.getInstance();
-
-export { LLMProvider };
 export default llmProvider;
