@@ -1,50 +1,44 @@
 import { useAppStore } from '../../store/appStore'
 import { TerminalPanel } from '../Terminal/TerminalPanel'
 import { ChatPanel } from '../Chat/ChatPanel'
-import type { BottomPanelType } from '../../types'
 import { useTheme } from '../../hooks/useTheme'
-
-const tabs: Array<{ id: BottomPanelType; label: string }> = [
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'chat', label: 'AI Chat' },
-  { id: 'problems', label: 'Problems' },
-  { id: 'output', label: 'Output' },
-]
+import { useRef, useState, useCallback } from 'react'
 
 export function BottomPanel() {
-  const { activePanel, activeBottomPanel, setActiveBottomPanel, setActivePanel, toggleBottomPanel } = useAppStore()
+  const { toggleBottomPanel } = useAppStore()
   const { theme } = useTheme()
+  const [splitRatio, setSplitRatio] = useState(0.5) // 0..1, left panel fraction
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dragging = useRef(false)
 
-  // When chat tab is clicked in bottom panel while chat is already in main area,
-  // just switch to the main chat view instead of creating a duplicate
-  const handleTabClick = (id: BottomPanelType) => {
-    if (id === 'chat') {
-      setActivePanel('chat')
-    } else {
-      setActiveBottomPanel(id)
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    dragging.current = true
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragging.current || !containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const ratio = (e.clientX - rect.left) / rect.width
+      setSplitRatio(Math.max(0.15, Math.min(0.85, ratio)))
     }
-  }
 
-  // If chat is showing in main area, don't also show it in bottom panel
-  const showChatHere = activeBottomPanel === 'chat' && activePanel !== 'chat'
+    const onMouseUp = () => {
+      dragging.current = false
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [])
 
   return (
     <div className="h-full bg-bg-secondary flex flex-col border-t border-border">
-      {/* Tabs */}
+      {/* Header bar */}
       <div className="flex items-center h-8 border-b border-border px-2 gap-1">
-        {tabs.map(({ id, label }) => (
-          <button
-            key={id}
-            className={`px-3 py-1 text-xs font-medium rounded-t transition-colors ${
-              activeBottomPanel === id
-                ? 'text-text-primary bg-bg-primary'
-                : 'text-text-muted hover:text-text-secondary'
-            }`}
-            onClick={() => handleTabClick(id)}
-          >
-            {label}
-          </button>
-        ))}
+        <span className="px-3 py-1 text-xs font-medium text-text-primary">Terminal</span>
+        <span className="text-text-muted text-xs">|</span>
+        <span className="px-3 py-1 text-xs font-medium text-text-primary">AI Chat</span>
         <div className="flex-1" />
         <button
           className="text-text-muted hover:text-text-primary text-xs px-1"
@@ -55,21 +49,21 @@ export function BottomPanel() {
         </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        {activeBottomPanel === 'terminal' && <TerminalPanel theme={theme} />}
-        {showChatHere && <ChatPanel />}
-        {activeBottomPanel === 'chat' && !showChatHere && (
-          <div className="flex items-center justify-center h-full text-text-muted text-sm">
-            AI Chat is open in the main area. Click 💬 in the activity bar to view it.
-          </div>
-        )}
-        {activeBottomPanel === 'problems' && (
-          <div className="p-4 text-text-muted text-sm">No problems detected.</div>
-        )}
-        {activeBottomPanel === 'output' && (
-          <div className="p-4 text-text-muted text-sm">No output.</div>
-        )}
+      {/* Content — Terminal left, Chat right, draggable divider */}
+      <div ref={containerRef} className="flex-1 flex overflow-hidden">
+        {/* Terminal */}
+        <div style={{ width: `${splitRatio * 100}%` }} className="flex-shrink-0 overflow-hidden">
+          <TerminalPanel theme={theme} />
+        </div>
+        {/* Draggable divider */}
+        <div
+          className="resizer resizer-horizontal"
+          onMouseDown={handleResizeStart}
+        />
+        {/* AI Chat */}
+        <div className="flex-1 overflow-hidden">
+          <ChatPanel />
+        </div>
       </div>
     </div>
   )

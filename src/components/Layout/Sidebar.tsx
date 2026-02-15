@@ -8,7 +8,6 @@ import { KnowledgePanel } from '../Knowledge/KnowledgePanel'
 import { SettingsPanel } from '../Settings/SettingsPanel'
 import { SearchPanel } from '../Layout/SearchPanel'
 import { GitPanel } from '../Layout/GitPanel'
-import { ChatPanel } from '../Chat/ChatPanel'
 
 export function Sidebar() {
   const { activePanel } = useAppStore()
@@ -23,7 +22,7 @@ export function Sidebar() {
       case 'memory': return <MemoryPanel />
       case 'tasks': return <TaskList />
       case 'knowledge': return <KnowledgePanel />
-      case 'chat': return <ChatPanel />
+      case 'chat': return <div className="p-4 text-xs text-text-muted">AI Chat is available in the bottom panel.</div>
       case 'settings': return <SettingsPanel />
       default: return <FileExplorer />
     }

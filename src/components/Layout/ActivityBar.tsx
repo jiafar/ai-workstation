@@ -18,10 +18,7 @@ export function ActivityBar() {
   const { activePanel, setActivePanel, showSidebar, toggleSidebar } = useAppStore()
 
   const handleClick = (id: PanelType) => {
-    if (id === 'chat') {
-      // Chat uses the main area, not the sidebar — just toggle activePanel
-      setActivePanel(activePanel === 'chat' ? 'explorer' : 'chat')
-    } else if (activePanel === id && showSidebar) {
+    if (activePanel === id && showSidebar) {
       toggleSidebar()
     } else {
       setActivePanel(id)
@@ -34,7 +31,7 @@ export function ActivityBar() {
       {panels.map(({ id, icon, label }) => (
         <button
           key={id}
-          className={`activity-icon text-lg ${activePanel === id && (id === 'chat' || showSidebar) ? 'active' : ''}`}
+          className={`activity-icon text-lg ${activePanel === id && showSidebar ? 'active' : ''}`}
           onClick={() => handleClick(id)}
           title={label}
         >

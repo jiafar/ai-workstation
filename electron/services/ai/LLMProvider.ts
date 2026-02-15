@@ -72,9 +72,35 @@ class LLMProvider {
   private createAnthropicClient(): Anthropic {
     const aiConfig = this.getAIConfig();
     const apiKey = aiConfig.anthropicApiKey?.trim();
+
+    logger.info('[AI] Creating Anthropic client', {
+      hasApiKey: !!apiKey,
+      apiKeyLength: apiKey?.length,
+      apiKeyPrefix: apiKey ? `${apiKey.substring(0, 15)}...` : 'none'
+    });
+
     if (!apiKey) {
       throw new Error('Anthropic API key not configured. Please set it in Settings.');
     }
+
+    // Check if this is an OAuth token (sk-ant-oat) which may not work with standard API
+    if (apiKey.startsWith('sk-ant-oat')) {
+      logger.warn('[AI] Detected OAuth token format. This may require browser-based authentication.');
+      throw new Error(
+        '检测到 OAuth Token 格式 (sk-ant-oat)。\n' +
+        '这种 Token 是 Claude Code 的临时 Token，不适用于独立 API 调用。\n\n' +
+        '解决方法：\n' +
+        '1. 访问 https://console.anthropic.com/settings/keys\n' +
+        '2. 创建新的 API Key（格式为 sk-ant-api03-...）\n' +
+        '3. 在设置中更新 API Key'
+      );
+    }
+
+    // Validate API key format
+    if (!apiKey.startsWith('sk-ant-api')) {
+      logger.warn('[AI] Anthropic API key has unexpected format', { prefix: apiKey.substring(0, 10) });
+    }
+
     return new Anthropic({ apiKey });
   }
 
@@ -238,49 +264,64 @@ class LLMProvider {
     options: ChatOptions,
     onChunk: StreamChunkCallback
   ): Promise<void> {
-    const client = this.createAnthropicClient();
-    const aiConfig = this.getAIConfig();
-    const model = options.model || aiConfig.anthropicModel || 'claude-sonnet-4-5-20250929';
+    try {
+      const client = this.createAnthropicClient();
+      const aiConfig = this.getAIConfig();
+      const model = options.model || aiConfig.anthropicModel || 'claude-sonnet-4-5-20250929';
 
-    // Separate system messages from user/assistant messages
-    const systemMessages = messages.filter((msg) => msg.role === 'system');
-    let conversationMessages = messages.filter((msg) => msg.role !== 'system');
+      // Separate system messages from user/assistant messages
+      const systemMessages = messages.filter((msg) => msg.role === 'system');
+      let conversationMessages = messages.filter((msg) => msg.role !== 'system');
 
-    // Anthropic requires the first message to be 'user' role — drop leading assistant messages
-    while (conversationMessages.length > 0 && conversationMessages[0].role !== 'user') {
-      conversationMessages = conversationMessages.slice(1);
-    }
-
-    if (conversationMessages.length === 0) {
-      throw new Error('No user messages to send to Anthropic API');
-    }
-
-    const systemPrompt = systemMessages.map((msg) => msg.content).join('\n\n');
-
-    logger.debug('[AI] chatStreamAnthropic calling API', {
-      model,
-      messageCount: conversationMessages.length,
-      firstRole: conversationMessages[0]?.role,
-    });
-
-    const stream = await client.messages.stream({
-      model,
-      max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
-      temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
-      system: systemPrompt || undefined,
-      messages: conversationMessages.map((msg) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-      })),
-    });
-
-    for await (const event of stream) {
-      if (
-        event.type === 'content_block_delta' &&
-        event.delta.type === 'text_delta'
-      ) {
-        onChunk(event.delta.text);
+      // Anthropic requires the first message to be 'user' role — drop leading assistant messages
+      while (conversationMessages.length > 0 && conversationMessages[0].role !== 'user') {
+        conversationMessages = conversationMessages.slice(1);
       }
+
+      if (conversationMessages.length === 0) {
+        throw new Error('No user messages to send to Anthropic API');
+      }
+
+      const systemPrompt = systemMessages.map((msg) => msg.content).join('\n\n');
+
+      logger.info('[AI] chatStreamAnthropic calling API', {
+        model,
+        messageCount: conversationMessages.length,
+        firstRole: conversationMessages[0]?.role,
+        systemPromptLength: systemPrompt?.length || 0,
+      });
+
+      logger.info('[AI] Starting Anthropic stream with model:', model);
+
+      const stream = await client.messages.stream({
+        model,
+        max_tokens: options.maxTokens ?? aiConfig.maxTokens ?? 2000,
+        temperature: options.temperature ?? aiConfig.temperature ?? 0.7,
+        system: systemPrompt || undefined,
+        messages: conversationMessages.map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        })),
+      });
+
+      for await (const event of stream) {
+        if (
+          event.type === 'content_block_delta' &&
+          event.delta.type === 'text_delta'
+        ) {
+          onChunk(event.delta.text);
+        }
+      }
+
+      logger.info('[AI] Anthropic stream completed successfully');
+    } catch (error: any) {
+      logger.error('[AI] Anthropic stream error:', {
+        error: error.message,
+        errorType: error.constructor?.name,
+        status: error.status,
+        response: error.response?.data,
+      });
+      throw error;
     }
   }
 

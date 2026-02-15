@@ -4,7 +4,6 @@ import { Sidebar } from './components/Layout/Sidebar'
 import { EditorArea } from './components/Editor/EditorArea'
 import { BottomPanel } from './components/Layout/BottomPanel'
 import { StatusBar } from './components/Layout/StatusBar'
-import { ChatPanel } from './components/Chat/ChatPanel'
 import { ErrorBoundary, PanelErrorBoundary } from './components/ErrorBoundary'
 import { useAppStore } from './store/appStore'
 import { useTheme } from './hooks/useTheme'
@@ -15,7 +14,6 @@ function AppContent() {
   const {
     sidebarWidth,
     panelHeight,
-    activePanel,
     showSidebar,
     showBottomPanel,
     setSidebarWidth,
@@ -97,8 +95,8 @@ function AppContent() {
         {/* Activity Bar */}
         <ActivityBar />
 
-        {/* Sidebar — hidden when chat is active (ChatPanel has its own conversation list) */}
-        {showSidebar && activePanel !== 'chat' && (
+        {/* Sidebar */}
+        {showSidebar && (
           <>
             <div style={{ width: sidebarWidth }} className="flex-shrink-0">
               <PanelErrorBoundary panelName="Sidebar">
@@ -115,17 +113,11 @@ function AppContent() {
 
         {/* Editor + Bottom Panel */}
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Main Content Area — Chat or Editor */}
+          {/* Editor Area */}
           <div className="flex-1 overflow-hidden">
-            {activePanel === 'chat' ? (
-              <PanelErrorBoundary panelName="Chat">
-                <ChatPanel />
-              </PanelErrorBoundary>
-            ) : (
-              <PanelErrorBoundary panelName="Editor">
-                <EditorArea />
-              </PanelErrorBoundary>
-            )}
+            <PanelErrorBoundary panelName="Editor">
+              <EditorArea />
+            </PanelErrorBoundary>
           </div>
 
           {/* Bottom Panel Resizer */}
