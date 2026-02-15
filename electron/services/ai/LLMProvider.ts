@@ -88,7 +88,7 @@ class LLMProvider {
     if (!apiKey) {
       throw new Error('Kimi API key not configured. Please set it in Settings.');
     }
-    return new OpenAI({ apiKey, baseURL: 'https://api.moonshot.cn/v1' });
+    return new OpenAI({ apiKey, baseURL: 'https://api.moonshot.ai/v1' });
   }
 
   async chat(messages: Message[], options: ChatOptions = {}): Promise<string> {
@@ -165,7 +165,7 @@ class LLMProvider {
   private async chatKimi(messages: Message[], options: ChatOptions): Promise<string> {
     const client = this.createKimiClient();
     const aiConfig = this.getAIConfig();
-    const model = options.model || aiConfig.kimiModel || 'moonshot-v1-8k';
+    const model = options.model || aiConfig.kimiModel || 'kimi-k2.5';
 
     const response = await client.chat.completions.create({
       model,
@@ -289,7 +289,7 @@ class LLMProvider {
   ): Promise<void> {
     const client = this.createKimiClient();
     const aiConfig = this.getAIConfig();
-    const model = options.model || aiConfig.kimiModel || 'moonshot-v1-8k';
+    const model = options.model || aiConfig.kimiModel || 'kimi-k2.5';
 
     const stream = await client.chat.completions.create({
       model,
