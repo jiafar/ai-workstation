@@ -1,16 +1,10 @@
 import { ipcMain, type IpcMainInvokeEvent, BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
-
-// Lazy-initialized LLM provider
-let llmProvider: any = null
+import { logger } from '../utils/logger'
+import { LLMProvider } from '../services/ai/LLMProvider'
 
 function getLLMProvider() {
-  if (!llmProvider) {
-    // Lazy init - import dynamically to avoid circular deps
-    const { LLMProvider } = require('../services/ai/LLMProvider')
-    llmProvider = LLMProvider.getInstance()
-  }
-  return llmProvider
+  return LLMProvider.getInstance()
 }
 
 export function registerAIHandlers() {
@@ -26,6 +20,7 @@ export function registerAIHandlers() {
         const response = await provider.chat(messages, options)
         return { success: true, data: response }
       } catch (error: any) {
+        logger.error('[AI] chat error', { error: error?.message || String(error) })
         return { success: false, error: error.message }
       }
     }
@@ -40,6 +35,7 @@ export function registerAIHandlers() {
     ) => {
       const requestId = randomUUID()
       const win = BrowserWindow.fromWebContents(event.sender)
+      logger.info('[AI] chat-stream called', { requestId, messageCount: messages?.length, options })
 
       try {
         const provider = getLLMProvider()
@@ -57,17 +53,21 @@ export function registerAIHandlers() {
             }
           })
           .catch((err: any) => {
+            const errorMsg = err?.message || String(err)
+            logger.error('[AI] stream error', { requestId, error: errorMsg, stack: err?.stack })
             if (win && !win.isDestroyed()) {
-              win.webContents.send('ai:stream-error', requestId, err.message)
+              win.webContents.send('ai:stream-error', requestId, errorMsg)
             }
           })
 
         return { success: true, data: requestId }
       } catch (error: any) {
+        const errorMsg = error?.message || String(error)
+        logger.error('[AI] chat-stream init error', { requestId, error: errorMsg })
         if (win && !win.isDestroyed()) {
-          win.webContents.send('ai:stream-error', requestId, error.message)
+          win.webContents.send('ai:stream-error', requestId, errorMsg)
         }
-        return { success: false, error: error.message }
+        return { success: false, error: errorMsg }
       }
     }
   )
@@ -80,6 +80,7 @@ export function registerAIHandlers() {
         const embedding = await provider.embed(text)
         return { success: true, data: embedding }
       } catch (error: any) {
+        logger.error('[AI] embed error', { error: error?.message || String(error) })
         return { success: false, error: error.message }
       }
     }

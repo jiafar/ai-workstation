@@ -105,8 +105,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ className }) => {
     setInput('')
     setIsLoading(true)
 
+    // Build API messages: exclude welcome/UI-only messages and streaming placeholders
     const conversationMessages = messages
-      .filter((m) => !m.isStreaming)
+      .filter((m) => !m.isStreaming && m.id !== 'welcome')
       .map((m) => ({ role: m.role, content: m.content }))
       .concat([{ role: 'user', content: userMessage.content }])
 

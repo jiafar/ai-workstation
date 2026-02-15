@@ -65,7 +65,11 @@ export const SettingsPanel: React.FC = () => {
   const updateAI = useCallback((field: keyof AISettings, value: unknown) => {
     setAISettings((prev) => {
       if (!prev) return prev;
-      const updated = { ...prev, [field]: value };
+      // Trim API keys to prevent invisible characters from copy-paste
+      const cleanValue = (field === 'openaiApiKey' || field === 'anthropicApiKey') && typeof value === 'string'
+        ? value.trim()
+        : value;
+      const updated = { ...prev, [field]: cleanValue };
       // Save immediately
       window.api.config.updateSection('ai', updated).catch(console.error);
       return updated;

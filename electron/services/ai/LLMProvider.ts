@@ -58,11 +58,12 @@ class LLMProvider {
    */
   private createOpenAIClient(): OpenAI {
     const aiConfig = this.getAIConfig();
-    if (!aiConfig.openaiApiKey) {
+    const apiKey = aiConfig.openaiApiKey?.trim();
+    if (!apiKey) {
       throw new Error('OpenAI API key not configured. Please set it in Settings.');
     }
     const baseURL = aiConfig.openaiBaseUrl || 'https://api.openai.com/v1';
-    return new OpenAI({ apiKey: aiConfig.openaiApiKey, baseURL });
+    return new OpenAI({ apiKey, baseURL });
   }
 
   /**
@@ -70,10 +71,11 @@ class LLMProvider {
    */
   private createAnthropicClient(): Anthropic {
     const aiConfig = this.getAIConfig();
-    if (!aiConfig.anthropicApiKey) {
+    const apiKey = aiConfig.anthropicApiKey?.trim();
+    if (!apiKey) {
       throw new Error('Anthropic API key not configured. Please set it in Settings.');
     }
-    return new Anthropic({ apiKey: aiConfig.anthropicApiKey });
+    return new Anthropic({ apiKey });
   }
 
   async chat(messages: Message[], options: ChatOptions = {}): Promise<string> {
@@ -117,7 +119,16 @@ class LLMProvider {
 
     // Separate system messages from user/assistant messages
     const systemMessages = messages.filter((msg) => msg.role === 'system');
-    const conversationMessages = messages.filter((msg) => msg.role !== 'system');
+    let conversationMessages = messages.filter((msg) => msg.role !== 'system');
+
+    // Anthropic requires the first message to be 'user' role — drop leading assistant messages
+    while (conversationMessages.length > 0 && conversationMessages[0].role !== 'user') {
+      conversationMessages = conversationMessages.slice(1);
+    }
+
+    if (conversationMessages.length === 0) {
+      throw new Error('No user messages to send to Anthropic API');
+    }
 
     const systemPrompt = systemMessages.map((msg) => msg.content).join('\n\n');
 
@@ -195,9 +206,24 @@ class LLMProvider {
 
     // Separate system messages from user/assistant messages
     const systemMessages = messages.filter((msg) => msg.role === 'system');
-    const conversationMessages = messages.filter((msg) => msg.role !== 'system');
+    let conversationMessages = messages.filter((msg) => msg.role !== 'system');
+
+    // Anthropic requires the first message to be 'user' role — drop leading assistant messages
+    while (conversationMessages.length > 0 && conversationMessages[0].role !== 'user') {
+      conversationMessages = conversationMessages.slice(1);
+    }
+
+    if (conversationMessages.length === 0) {
+      throw new Error('No user messages to send to Anthropic API');
+    }
 
     const systemPrompt = systemMessages.map((msg) => msg.content).join('\n\n');
+
+    logger.debug('[AI] chatStreamAnthropic calling API', {
+      model,
+      messageCount: conversationMessages.length,
+      firstRole: conversationMessages[0]?.role,
+    });
 
     const stream = await client.messages.stream({
       model,
