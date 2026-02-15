@@ -177,6 +177,17 @@ class SQLiteManager {
       CREATE INDEX IF NOT EXISTS idx_rituals_enabled ON rituals(enabled);
     `);
 
+    // Create trigger to auto-update conversation timestamp when new message is added
+    this.db.exec(`
+      CREATE TRIGGER IF NOT EXISTS update_conversation_timestamp
+      AFTER INSERT ON messages
+      BEGIN
+        UPDATE conversations 
+        SET updated_at = NEW.timestamp
+        WHERE id = NEW.conversation_id;
+      END;
+    `);
+
     logger.info('Database tables created successfully');
 
     // Run migrations after initial table creation

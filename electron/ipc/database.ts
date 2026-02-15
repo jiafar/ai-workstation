@@ -207,6 +207,18 @@ export function registerDatabaseHandlers() {
     }
   });
 
+  ipcMain.handle('db:conversations:delete', async (_event: IpcMainInvokeEvent, id: string) => {
+    try {
+      ensureDb();
+      // Delete conversation (messages will be auto-deleted via ON DELETE CASCADE)
+      const result = sqliteManager.run('DELETE FROM conversations WHERE id = ?', [id]);
+      return { success: true, data: { changes: result.changes } };
+    } catch (error: any) {
+      logger.error('db:conversations:delete failed', { id, error: error.message });
+      return { success: false, error: error.message };
+    }
+  });
+
   // ---------------------------------------------------------------------------
   // Messages
   // ---------------------------------------------------------------------------

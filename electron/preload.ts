@@ -79,6 +79,7 @@ export interface ElectronAPI {
     conversations: {
       list: (params?: { limit?: number }) => Promise<unknown[]>
       create: (params: { id: string; title: string }) => Promise<unknown>
+      delete: (id: string) => Promise<unknown>
     }
     messages: {
       list: (conversationId: string) => Promise<unknown[]>
@@ -235,6 +236,7 @@ const api: ElectronAPI = {
     conversations: {
       list: (params) => unwrap<unknown[]>(ipcRenderer.invoke('db:conversations:list', params)),
       create: (params) => unwrap(ipcRenderer.invoke('db:conversations:create', params)),
+      delete: (id) => unwrap(ipcRenderer.invoke('db:conversations:delete', id)),
     },
     messages: {
       list: (conversationId) => unwrap<unknown[]>(ipcRenderer.invoke('db:messages:list', conversationId)),

@@ -28,8 +28,11 @@ export function registerTerminalHandlers() {
   ipcMain.handle('terminal:create', async (event: IpcMainInvokeEvent, id: string, cwd?: string) => {
     try {
       if (terminals.has(id)) {
-        logger.warn(`[Terminal] ${id} already exists`)
-        return { success: false, error: 'Terminal already exists' }
+        // Kill the existing terminal (can happen with React StrictMode double-mount)
+        const existing = terminals.get(id)!
+        try { existing.pty.kill() } catch {}
+        terminals.delete(id)
+        logger.info(`[Terminal] ${id} replaced (previous instance killed)`)
       }
 
       const shell = getDefaultShell()
@@ -69,19 +72,23 @@ export function registerTerminalHandlers() {
       // 处理退出
       ptyProcess.onExit(({ exitCode, signal }) => {
         logger.info(`[Terminal] ${id} exited`, { exitCode, signal })
-        terminals.delete(id)
-        try {
-          const win = getWindowById(windowId)
-          if (win && !win.isDestroyed()) {
-            win.webContents.send('terminal:exit', id, exitCode)
+        const current = terminals.get(id)
+        if (current && current.pty === ptyProcess) {
+          // This is still the active terminal — clean up and notify renderer
+          terminals.delete(id)
+          try {
+            const win = getWindowById(windowId)
+            if (win && !win.isDestroyed()) {
+              win.webContents.send('terminal:exit', id, exitCode)
+            }
+          } catch (error) {
+            if ((error as any)?.code === 'EPIPE') {
+              return
+            }
+            logger.error(`[Terminal] Error sending exit for ${id}:`, error)
           }
-        } catch (error) {
-          // 忽略 EPIPE 错误
-          if ((error as any)?.code === 'EPIPE') {
-            return
-          }
-          logger.error(`[Terminal] Error sending exit for ${id}:`, error)
         }
+        // If pty was replaced or already removed, silently ignore — don't send stale exit events
       })
 
       terminals.set(id, { 
